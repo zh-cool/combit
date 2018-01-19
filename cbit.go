@@ -1,10 +1,10 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 	"math/rand"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -25,17 +25,26 @@ type Bigbit struct {
 func NewBitbit(num int, length int64) *Bigbit {
 	var bit Bigbit
 
-	buf := new(bytes.Buffer)
+	//buf := new(bytes.Buffer)
 	for i := 0; i < num; i++ {
+		bit.bit = append(bit.bit, make([]byte, length>>3))
 		src := rand.NewSource(time.Now().Unix() + int64(i))
 		rd := rand.New(src)
-		data := rd.Perm(int(length >> 5))
-		for _, v := range data {
-			binary.Write(buf, binary.BigEndian, int32(v)|int32(v<<16))
-		}
+		/*
+			data := rd.Perm(int(length >> 5))
+			for _, v := range data {
+				binary.Write(buf, binary.BigEndian, int32(v)|int32(v<<16))
+			}
 
-		s := buf.Bytes()
-		bit.bit = append(bit.bit, s)
+			s := buf.Bytes()
+			bit.bit = append(bit.bit, s)
+		*/
+		for j := 0; j < int(length>>8); j++ {
+			pos := rd.Int63n(length)
+			bytepos := pos >> 8
+			bitpos := pos % 8
+			bit.bit[i][bytepos] |= (1 << uint(bitpos))
+		}
 	}
 
 	return &bit
@@ -47,7 +56,7 @@ func (bit *Bigbit) Count() {
 	var i uint
 	TBIT = 128
 	var shex string
-	var hexstring string
+	var hexstring []string
 
 	for _, v := range bit.bit {
 		cb = Cbit{128, -1}
@@ -69,24 +78,32 @@ func (bit *Bigbit) Count() {
 	}
 
 	for _, vv := range bit.cmbit[1:] {
+		hsdata := []string{}
 		if vv.count > 1 {
-			shex = fmt.Sprintf("%b%x", uint8(vv.b), uint32(vv.count))
+			//shex = fmt.Sprintf("%b%x", uint8(vv.b), uint32(vv.count))
+			shex = strconv.FormatInt(int64(vv.b), 16)
+			hsdata = append(hsdata, shex)
+			shex = strconv.FormatUint(uint64(vv.count), 16)
+			hsdata = append(hsdata, shex)
 		} else {
-			shex = fmt.Sprintf("%b", vv.b)
+			//shex = fmt.Sprintf("%b", vv.b)
+			shex = strconv.FormatInt(int64(vv.b), 16)
+			hsdata = append(hsdata, shex)
 		}
-
-		hbyte := []byte(shex)
-		for i, v := range hbyte[1:] {
-			if v == 0 {
-				hbyte[i] = 'g'
-			} else if v == 1 {
-				hbyte[i] = 'h'
+		/*
+			hbyte := []byte(strings.Join(hsdata, ""))
+			for i, v := range hbyte[1:] {
+				if v == 0 {
+					hbyte[i] = 'g'
+				} else if v == 1 {
+					hbyte[i] = 'h'
+				}
 			}
-		}
-		hexstring += shex
+		*/
+		hexstring = append(hexstring, strings.Join(hsdata, ""))
 	}
-	bit.hexstring = hexstring
-	bit.hexdata = []byte(hexstring)
+	bit.hexstring = strings.Join(hexstring, "")
+	bit.hexdata = []byte(bit.hexstring)
 }
 
 func (bit *Bigbit) Statistics() {
