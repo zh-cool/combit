@@ -16,8 +16,10 @@ type Cbit struct {
 }
 
 type Bigbit struct {
-	bit   [][]byte
-	cmbit []Cbit
+	bit       [][]byte
+	cmbit     []Cbit
+	hexdata   []byte
+	hexstring string
 }
 
 func NewBitbit(num int, length int64) *Bigbit {
@@ -36,7 +38,6 @@ func NewBitbit(num int, length int64) *Bigbit {
 		s := buf.Bytes()
 		bit.bit = append(bit.bit, s)
 	}
-	fmt.Println(bit.bit)
 
 	return &bit
 }
@@ -46,6 +47,9 @@ func (bit *Bigbit) Count() {
 	var TBIT uint8
 	var i uint
 	TBIT = 128
+	var shex string
+	var hexstring string
+
 	for _, v := range bit.bit {
 		cb = Cbit{128, -1}
 		for _, bt := range v {
@@ -63,6 +67,54 @@ func (bit *Bigbit) Count() {
 			}
 		}
 	}
+
+	for _, vv := range bit.cmbit[1:] {
+		if vv.count > 1 {
+			shex = fmt.Sprintf("%b%x", uint8(vv.b), uint32(vv.count))
+		} else {
+			shex = fmt.Sprintf("%b", vv.b)
+		}
+
+		hbyte := []byte(shex)
+		for i, v := range hbyte[1:] {
+			if v == 0 {
+				hbyte[i] = 'g'
+			} else if v == 1 {
+				hbyte[i] = 'h'
+			}
+		}
+		hexstring += shex
+	}
+	bit.hexstring = hexstring
+	bit.hexdata = []byte(hexstring)
+}
+
+func (bit *Bigbit) Statistics() {
+	var bitsize int64
+	var bytesize int64
+	var zosize [2]int64
+
+	fmt.Println("Org data statistics:")
+	for _, v := range bit.bit {
+		bytesize += int64(len(v))
+	}
+	bitsize = bytesize << 3
+
+	for _, v := range bit.cmbit[1:] {
+		zosize[v.b] += int64(v.count)
+	}
+
+	fmt.Printf("size:=(%dbits %dbyte %dKB, %dMB) 1:%d 0:%d\n",
+		bitsize, bytesize, bytesize>>10, bytesize>>20,
+		zosize[1], zosize[0])
+
+	fmt.Println("Compress data statistics:")
+	bytesize = int64(len(bit.hexdata))
+	bitsize = bytesize << 3
+	fmt.Printf("size:=(%dbits %dbyte %dKB, %dMB)\n",
+		bitsize, bytesize, bytesize>>10, bytesize>>20,
+	)
+
 }
 
 func (bit *Bigbit) Print() {
@@ -74,11 +126,13 @@ func (bit *Bigbit) Print() {
 		}
 		fmt.Printf("]\n")
 	}
-	fmt.Println(bit.cmbit)
+	fmt.Println("Compress data")
+	fmt.Println(bit.hexstring)
 }
 
 func main() {
 	bit := NewBitbit(1, 1<<12)
 	bit.Count()
 	bit.Print()
+	bit.Statistics()
 }
