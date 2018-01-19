@@ -1,10 +1,15 @@
 package main
 
 import (
+	//	"flag"
 	"fmt"
+	//	"log"
 	"math/rand"
+	//	"os"
+	//"runtime/pprof"
 	"strconv"
-	"strings"
+	//	"strings"
+	"bytes"
 	"time"
 )
 
@@ -41,7 +46,7 @@ func NewBitbit(num int, length int64) *Bigbit {
 		*/
 		for j := 0; j < int(length>>8); j++ {
 			pos := rd.Int63n(length)
-			bytepos := pos >> 8
+			bytepos := pos >> 3
 			bitpos := pos % 8
 			bit.bit[i][bytepos] |= (1 << uint(bitpos))
 		}
@@ -56,7 +61,7 @@ func (bit *Bigbit) Count() {
 	var i uint
 	TBIT = 128
 	var shex string
-	var hexstring []string
+	//var hexstring []string
 
 	for _, v := range bit.bit {
 		cb = Cbit{128, -1}
@@ -77,32 +82,35 @@ func (bit *Bigbit) Count() {
 		bit.cmbit = append(bit.cmbit, cb)
 	}
 
+	ozstring := []string{"0", "1"}
+	var buffer bytes.Buffer
 	for _, vv := range bit.cmbit[1:] {
 		hsdata := []string{}
 		if vv.count > 1 {
-			//shex = fmt.Sprintf("%b%x", uint8(vv.b), uint32(vv.count))
-			shex = strconv.FormatInt(int64(vv.b), 16)
-			hsdata = append(hsdata, shex)
+			hsdata = append(hsdata, ozstring[vv.b])
 			shex = strconv.FormatUint(uint64(vv.count), 16)
 			hsdata = append(hsdata, shex)
-		} else {
-			//shex = fmt.Sprintf("%b", vv.b)
-			shex = strconv.FormatInt(int64(vv.b), 16)
-			hsdata = append(hsdata, shex)
-		}
-		/*
-			hbyte := []byte(strings.Join(hsdata, ""))
-			for i, v := range hbyte[1:] {
-				if v == 0 {
-					hbyte[i] = 'g'
-				} else if v == 1 {
-					hbyte[i] = 'h'
+			bthex := []byte(hsdata[1])
+			for i, v := range bthex {
+				if v == '0' {
+					bthex[i] = 'g'
+				} else if v == '1' {
+					bthex[i] = 'h'
 				}
 			}
-		*/
-		hexstring = append(hexstring, strings.Join(hsdata, ""))
+			hsdata[1] = string(bthex)
+			//hexstring = append(hexstring, strings.Join(hsdata, ""))
+			buffer.WriteString(hsdata[0])
+			buffer.WriteString(hsdata[1])
+		} else {
+			hsdata = append(hsdata, ozstring[vv.b])
+			//hexstring = append(hexstring, strings.Join(hsdata, ""))
+			buffer.WriteString(hsdata[0])
+		}
+
 	}
-	bit.hexstring = strings.Join(hexstring, "")
+	//bit.hexstring = strings.Join(hexstring, "")
+	bit.hexstring = buffer.String()
 	bit.hexdata = []byte(bit.hexstring)
 }
 
@@ -149,8 +157,8 @@ func (bit *Bigbit) Print() {
 }
 
 func main() {
-	bit := NewBitbit(1, 1<<12)
+	bit := NewBitbit(1, 1<<32)
 	bit.Count()
-	bit.Print()
+	//bit.Print()
 	bit.Statistics()
 }
