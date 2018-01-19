@@ -23,14 +23,13 @@ type Bigbit struct {
 }
 
 func NewBitbit(num int, length int64) *Bigbit {
-
 	var bit Bigbit
+
 	buf := new(bytes.Buffer)
 	for i := 0; i < num; i++ {
 		src := rand.NewSource(time.Now().Unix() + int64(i))
 		rd := rand.New(src)
 		data := rd.Perm(int(length >> 5))
-
 		for _, v := range data {
 			binary.Write(buf, binary.BigEndian, int32(v)|int32(v<<16))
 		}
@@ -66,6 +65,7 @@ func (bit *Bigbit) Count() {
 				}
 			}
 		}
+		bit.cmbit = append(bit.cmbit, cb)
 	}
 
 	for _, vv := range bit.cmbit[1:] {
@@ -126,6 +126,7 @@ func (bit *Bigbit) Print() {
 		}
 		fmt.Printf("]\n")
 	}
+	fmt.Println(bit.cmbit)
 	fmt.Println("Compress data")
 	fmt.Println(bit.hexstring)
 }
