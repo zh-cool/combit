@@ -17,15 +17,13 @@ type Bigbit struct {
 
 func bprint(data []byte) {
 	for i := 0; i < 16; i++ {
-		fmt.Printf("%08b :%d %08b :%d\n", data[i], data[i], data[i+1], data[i+1])
+		idx := i << 1
+		fmt.Printf("%08b :%3d %08b :%3d\n", data[idx], data[idx], data[idx+1], data[idx+1])
 	}
 }
 
 func (bits Bigbit) display(index int) {
-	for i := 0; i < 16; i++ {
-		fmt.Printf("%08b :%d %08b :%d\n", bits.bit[0][index*32+i], bits.bit[0][index*32+i], bits.bit[0][index*32+i+1], bits.bit[0][index*32+i+1])
-	}
-	fmt.Println()
+	bprint(bits.bit[0][index*32 : index*32+32])
 }
 
 func NewBitbit(num int, length int64) *Bigbit {
@@ -54,15 +52,12 @@ type Matric struct {
 }
 
 func (m Matric) display() {
-	for i := 0; i < 16; i++ {
-		fmt.Printf("%08b :%d %08b %d\n", m.matric[i], m.matric[i], m.matric[i+1], m.matric[i+1])
-	}
-	fmt.Println("Matric flag:", m.flag)
+	bprint(m.matric[:])
+	fmt.Printf("Matric flag:%d\n", m.flag)
 }
 
 func CreateMatric(data []byte) []Matric {
-	//bits := len(data) << 3
-	bprint(data[0:32])
+
 	CMatric := len(data) >> 5
 
 	matric := make([]Matric, CMatric)
@@ -72,22 +67,21 @@ func CreateMatric(data []byte) []Matric {
 			matric[i].matric[j] |= data[j+i<<5]
 			matric[i].flag |= uint8(data[j+i<<5])
 			matric[i].sum += uint(data[j+i<<5])
-			if i == 0 {
-				fmt.Printf("T%d %d %d ", j, matric[i].sum, uint(data[j+i<<5]))
-			}
 		}
-		/*
-			if matric[i].flag > 0 {
-				matric[i].flag = 1
-			}
-		*/
+		if matric[i].flag > 0 {
+			matric[i].flag = 1
+		}
 	}
-	fmt.Println("CreateMatric", CMatric, matric[0].sum, matric[0].flag)
-	bprint(data[0:32])
-	fmt.Println()
-	matric[0].display()
-	fmt.Println("CreateMatric", CMatric)
+
 	return matric
+}
+
+func Statistics(m []Matric) int {
+	count := 0
+	for _, v := range m {
+		count += int(v.flag)
+	}
+	return count
 }
 
 func prepareData(matric []Matric) []byte {
@@ -95,7 +89,7 @@ func prepareData(matric []Matric) []byte {
 	data := make([]byte, size)
 	for i, v := range matric {
 		if v.flag > 0 {
-			data[i/8] |= 1 << uint(i%8)
+			data[i/8] |= 1 << (7 - uint(i%8))
 			v.flag = 1
 		}
 	}
@@ -103,19 +97,36 @@ func prepareData(matric []Matric) []byte {
 }
 
 func main() {
-	fmt.Println("Austin Test")
-	bit := NewBitbit(1, 1<<16)
+	bit := NewBitbit(1, 1<<32)
+	fmt.Println("Org data")
 	bit.display(0)
 
-	matric := CreateMatric(bit.bit[0])
-	fmt.Println(len(matric))
-	matric[0].display()
+	matric_l1 := CreateMatric(bit.bit[0])
+	fmt.Printf("Matric L1 len:%d contain data:%d %v\n", len(matric_l1), Statistics(matric_l1), float64(Statistics(matric_l1))/float64(len(matric_l1)))
+	matric_l1[0].display()
 
-	data := prepareData(matric)
-	for i := 0; i < 256; i++ {
-		fmt.Printf("%d ", matric[i].flag)
-	}
+	data := prepareData(matric_l1)
 	fmt.Println()
 	bprint(data[0:32])
 
+	fmt.Println("---------next level-------")
+	matric_l2 := CreateMatric(data)
+	data = prepareData(matric_l2)
+	fmt.Printf("Matric L2 len:%d contain data:%d %v\n", len(matric_l2), Statistics(matric_l2), float64(Statistics(matric_l2))/float64(len(matric_l2)))
+	matric_l2[0].display()
+	fmt.Println()
+	bprint(data[0:32])
+
+	fmt.Println("---------next level-------")
+	matric_l3 := CreateMatric(data)
+	data = prepareData(matric_l3)
+	fmt.Printf("Matric L3 len:%d contain data:%d %v\n", len(matric_l3), Statistics(matric_l3), float64(Statistics(matric_l3))/float64(len(matric_l3)))
+	matric_l3[0].display()
+	fmt.Println()
+	bprint(data[0:32])
+
+	fmt.Println("---------next level-------")
+	matric_l4 := CreateMatric(data)
+	fmt.Println("Matric L4 len:", len(matric_l4))
+	matric_l4[0].display()
 }
