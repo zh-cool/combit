@@ -128,16 +128,28 @@ func (rd *myReader) Read(p []byte) (n int, err error) 	{
 			//v := conv[b]
 			if v == '0' || v == '1' {
 				if rd.prev == '0' {
-					for rd.count > 0 {
+					if rd.count==0 {
+						rd.count = 1
+					}
+					for rd.count >= 0 {
 						p[rd.bits/8] &^= (1 << (7-(rd.bits % 8)))
 						rd.bits++
 						rd.count--
+						if rd.count == 0 {
+							break
+						}
 					}
 				} else if rd.prev == '1' {
-					for rd.count > 0 {
+					if rd.count==0 {
+						rd.count = 1
+					}
+					for rd.count >= 0 {
 						p[rd.bits/8] |= (1 << (7 - (rd.bits % 8)))
 						rd.bits++
 						rd.count--
+						if rd.count == 0 {
+							break
+						}
 					}
 				}
 				rd.prev = v
@@ -148,16 +160,28 @@ func (rd *myReader) Read(p []byte) (n int, err error) 	{
 		}
 
 		if rd.prev == '0' {
-			for rd.count > 0 {
+			if rd.count==0 {
+				rd.count = 1
+			}
+			for rd.count >= 0 {
 				p[rd.bits/8] &^= (1 << (7-(rd.bits % 8)))
 				rd.bits++
 				rd.count--
+				if rd.count == 0 {
+					break
+				}
 			}
 		} else if rd.prev == '1' {
-			for rd.count > 0 {
+			if rd.count==0 {
+				rd.count = 1
+			}
+			for rd.count >= 0 {
 				p[rd.bits/8] |= (1 << (7 - (rd.bits % 8)))
 				rd.bits++
 				rd.count--
+				if rd.count == 0 {
+					break
+				}
 			}
 		}
 		rd.prev = v
@@ -201,6 +225,7 @@ func (rd *myReader) conbinpos() []conbin {
 		}
 	}
 	cmbit = append(cmbit, cb)
+	fmt.Println(cmbit)
 
 	var cn uint
 	for _, cb = range cmbit[1:] {
