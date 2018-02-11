@@ -5,12 +5,13 @@ import (
 	"compress/zlib"
 	"encoding/gob"
 	"fmt"
-	"github.com/syndtr/goleveldb/leveldb"
 	"go-unitcoin/libraries/common"
 	"math/big"
 	"math/rand"
 	"strconv"
 	"time"
+
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 const (
@@ -51,6 +52,107 @@ func (w *Wallet) toWallet(data []byte) {
 	}
 }
 
+func (w *Wallet) Set(bitpos int64) {
+	conv := map[byte]int64{
+		'0': 0,
+		'1': 1,
+		'2': 2,
+		'3': 3,
+		'4': 4,
+		'5': 5,
+		'6': 6,
+		'7': 7,
+		'8': 8,
+		'9': 9,
+		'a': 10,
+		'b': 11,
+		'c': 13,
+		'd': 14,
+		'e': 15,
+		'f': 16,
+		'g': 0,
+		'h': 1,
+	}
+
+	var i, k int64
+	fgpos := bitpos / FG_BIT_SIZE
+	bitpos = bitpos % FG_BIT_SIZE
+
+	data := w.Data[fgpos].Data
+	length := len(data)
+
+	big := &big.Int{}
+	big.SetBytes(make([]byte, FG_BYTE_SIZE))
+
+	bigpos := 0
+	for i = 0; i < int64(length); {
+		ch := data[i]
+		bit := conv[ch]
+		if ch == '1' || ch == '0' {
+			s, l := func(data []byte) (sum int64, length int64) {
+				sum = 0
+				length = 1
+				for i := 0; i < len(data); i++ {
+
+					ch := data[i]
+					if ch == '1' || ch == '0' {
+						return sum+1, length
+					}
+					sum = sum*16 + conv[ch]
+					length++
+				}
+				return sum+1, length
+			}(data[i+1:])
+
+			i += l
+			for k=0; k<s; k++ {
+				big.SetBit(big, bigpos, uint(bit))
+				bigpos++
+			}
+		}
+	}
+	big.SetBit(big, int(bitpos), 1)
+	w.Data[fgpos]=CreateOneFG(big.Bytes())
+}
+
+func (w *Wallet) FGCompress() {
+	for _, v := range w.Data {
+		b := bytes.NewBuffer([]byte{})
+		wr := zlib.NewWriter(b)
+		wr.Write(v.Data)
+		wr.Close()
+		v.Data = b.Bytes()
+	}
+}
+
+func (w *Wallet) Compress() []byte {
+	b := bytes.NewBuffer([]byte{})
+	W := zlib.NewWriter(b)
+
+	for _, v := range w.Data {
+		W.Write(v.Data)
+	}
+	W.Close()
+	return b.Bytes()
+}
+
+func (w *Wallet) Statistics() {
+
+	var sum int64
+	b := bytes.NewBuffer([]byte{})
+	W := zlib.NewWriter(b)
+
+	for _, v := range w.Data {
+		sum += int64(len(v.Data))
+		W.Write(v.Data)
+	}
+	W.Close()
+
+	l := len(b.Bytes())
+	fmt.Printf("Org Data:%dByte %dKB\n", sum, sum/1024)
+	fmt.Printf("Compress %dByte %dKB\n", l, l/1024)
+}
+
 type GWallet struct {
 	db *leveldb.DB
 }
@@ -78,7 +180,7 @@ func (gw *GWallet) ReleaseGWallet() {
 func CreateOneFG(data []byte) FG_data {
 	big := &big.Int{}
 	big.SetBytes(data)
-	bitlen := len(data) * 8
+	bitlen := FG_BIT_SIZE//len(data) * 8
 	big.SetBit(big, bitlen, big.Bit(bitlen-1)^1)
 
 	perbit := big.Bit(0)
@@ -108,13 +210,7 @@ func CreateOneFG(data []byte) FG_data {
 		}
 	}
 
-	b := bytes.NewBuffer([]byte{})
-	w := zlib.NewWriter(b)
-	w.Write(buf.Bytes())
-	w.Close()
-
-	hexdata := b.Bytes()
-	return FG_data{hexdata}
+	return FG_data{buf.Bytes()}
 }
 
 func CreateOneWallet(addr common.Address, data []byte) *Wallet {
@@ -125,7 +221,7 @@ func CreateOneWallet(addr common.Address, data []byte) *Wallet {
 			w.Data[i] = CreateOneFG(data[begin:begin+FG_BYTE_SIZE])
 		}
 	*/
-	FT_SIZE := 8
+	FT_SIZE := 4
 	PT_LENGTH := FG_LENGTH / FT_SIZE
 	fgCH := make(chan int, FT_SIZE)
 	for i := 0; i < FT_SIZE; i++ {
@@ -160,45 +256,98 @@ func RandData(length int64, data []byte) {
 	}
 }
 
-func main() {
-	addr := common.StringToAddress("123")
-	data := make([]byte, CONBIN_BYTE_SIZE)
-	RandData(CONBIN_BIT_SIZE, data)
-
-	/*
-		hd := data[CONBIN_BYTE_SIZE-FG_BYTE_SIZE:]
-		for _, v:=range hd {
-			fmt.Printf("%08b", v)
-		}
-	*/
-
-	w := CreateOneWallet(addr, data)
-
-	fg := w.Data[FG_LENGTH-1]
-
-	var b bytes.Buffer
-	b.Write(fg.Data)
-	r, _ := zlib.NewReader(&b)
-	hexdata := make([]byte, 1024)
-	l, _ := r.Read(hexdata)
-
-	//hexdata := fg.Data
-	fmt.Printf("\n\nlen:%d data:%s\n", l, hexdata[0:l])
-
-	var sum int64
-	for _, v := range w.Data {
-		sum += int64(len(v.Data))
+/*
+func merge(left, right []byte) []byte {
+	conv := map[byte]int {
+		'0' : 0,
+		'1' : 1,
+		'2' : 2,
+		'3' : 3,
+		'4' : 4,
+		'5' : 5,
+		'6' : 6,
+		'7' : 7,
+		'8' : 8,
+		'9' : 9,
+		'a' : 10,
+		'b' : 11,
+		'c' : 13,
+		'd' : 14,
+		'e' : 15,
+		'f' : 16,
+		'g' : 0,
+		'h' : 1,
 	}
-	fmt.Printf("Length:%dByte %dM", sum, sum/1024)
-	/*
-		gw, err := NewGWallet("path/to/db")
-		if(err != nil) {
-			fmt.Println(err)
-		}
-		defer gw.ReleaseGWallet()
 
-		gw.Put(w)
-		gwt, err := gw.Get(addr)
-		fmt.Println(gwt)
+	l := len(left)
+	r := len(right)
+
+	pos := l-1
+	for pos > 0 {
+		if(left[pos] == '1') || (left[pos] == '0') {
+			break
+		}
+		pos--
+	}
+
+	var sum int
+	sum = 0
+	for i:=pos; i<l; i++ {
+		sum = sum*16 + conv[left[i]]
+	}
+	llen := sum
+
+	sum = 0
+	for i := 1; i<r && right[i]!='1' && right[i]!='0'; i++ {
+		sum += sum*16 + conv[right[i]]
+	}
+
+
+
+	if left[l] == right[0] {
+
+	}
+}
+
+func divid_conquer(){
+
+}
+*/
+func main() {
+	/*
+		addr := common.StringToAddress("123")
+
+		data := make([]byte, CONBIN_BYTE_SIZE)
+		//RandData(CONBIN_BIT_SIZE, data)
+
+		w := CreateOneWallet(addr, data)
+
+		w.Statistics()
+
 	*/
+
+
+
+
+	gw, err := NewGWallet("path/to/db")
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer gw.ReleaseGWallet()
+
+	addr := common.StringToAddress("1")
+	w, err := gw.Get(addr)
+
+	for i:=0; i<1<<20; i++ {
+		addr = common.StringToAddress(strconv.FormatInt(int64(i), 16))
+		w, err = gw.Get(addr)
+		w.Set(int64(i))
+		gw.Put(w)
+
+		fmt.Println(i)
+
+	}
+
+	fmt.Printf("%v %s", w.ID, w.Data)
+
 }
