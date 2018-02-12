@@ -500,9 +500,9 @@ func RandData(length int64, data []byte) {
 	}
 }
 
-/*
+
 func merge(left, right []byte) []byte {
-	conv := map[byte]int {
+	conv := map[byte]int64 {
 		'0' : 0,
 		'1' : 1,
 		'2' : 2,
@@ -515,18 +515,34 @@ func merge(left, right []byte) []byte {
 		'9' : 9,
 		'a' : 10,
 		'b' : 11,
-		'c' : 13,
-		'd' : 14,
-		'e' : 15,
-		'f' : 16,
+		'c' : 12,
+		'd' : 13,
+		'e' : 14,
+		'f' : 15,
 		'g' : 0,
 		'h' : 1,
 	}
+	convint := func(num int64) string {
+		if num == 0 || num == 1{
+			return string("")
+		}
+		hexbyte := []byte(strconv.FormatInt(num, 16))
+		for i, v := range hexbyte {
+			if v == '1' {
+				hexbyte[i] = 'h'
+			}
+			if v == '0' {
+				hexbyte[i] = 'g'
+			}
+		}
+		return string(hexbyte)
+	}
 
-	l := len(left)
-	r := len(right)
+	var sum, i, length, r, l, pos int64
+	l = int64(len(left))
+	r = int64(len(right))
 
-	pos := l-1
+	pos = l-1
 	for pos > 0 {
 		if(left[pos] == '1') || (left[pos] == '0') {
 			break
@@ -534,32 +550,63 @@ func merge(left, right []byte) []byte {
 		pos--
 	}
 
-	var sum int
 	sum = 0
-	for i:=pos; i<l; i++ {
+	for i=pos+1; i<l; i++ {
 		sum = sum*16 + conv[left[i]]
+	}
+	if(sum == 0){
+		sum = 1
 	}
 	llen := sum
 
 	sum = 0
-	for i := 1; i<r && right[i]!='1' && right[i]!='0'; i++ {
-		sum += sum*16 + conv[right[i]]
+	for i = 1; i<r && right[i]!='1' && right[i]!='0'; i++ {
+		sum = sum*16 + conv[right[i]]
+	}
+	if(sum ==0 ){
+		sum = 1
 	}
 
-
-
-	if left[l] == right[0] {
-
+	data := []byte{}
+	if left[pos] == right[0] {
+		length = llen + sum
+		data = append(data, left[0:pos]...)
+		b := bytes.Buffer{}
+		if right[0] == '0'{
+			b.WriteString("0")
+		}else{
+			b.WriteString("1")
+		}
+		b.WriteString(convint(length))
+		data = append(data, b.Bytes()...)
+		data = append(data, right[i:]...)
+	}else{
+		data = append(data, left[:]...)
+		data = append(data, right[:]...)
 	}
+	return data
 }
 
-func divid_conquer(){
-
+func divid_conquer(data []byte) []byte{
+	if(len(data) > 1){
+		mid  := len(data)/2
+		left := divid_conquer(data[0:mid])
+		right:= divid_conquer(data[mid:len(data)])
+		return merge(left, right)
+	}
+	dt := int(data[0])
+	return []byte(strconv.FormatInt(int64(dt), 16))
 }
-*/
+
 func main() {
+
+	//data := []byte{0,1,0,0,0,1,1}
+	data := make([]byte, 1<<30)
+	result := divid_conquer(data)
+	fmt.Printf("%s\n", result)
+
 	/*
-		addr := common.StringToAddress("123")
+		addr := common.StringToAddress("0")
 
 		data := make([]byte, CONBIN_BYTE_SIZE)
 		//RandData(CONBIN_BIT_SIZE, data)
@@ -567,20 +614,26 @@ func main() {
 		w := CreateOneWallet(addr, data)
 
 		w.Statistics()
-
 	*/
 
+/*
 	gw, err := NewGWallet("path/to/db")
 	if err != nil {
 		fmt.Println(err)
+		return
 	}
 	defer gw.ReleaseGWallet()
 
 	addr := common.StringToAddress("0")
 	w, err := gw.Get(addr)
+	w.SetBit(2,1)
+	w.SetBit(3,1)
+	fmt.Println(w.Bit(2), w.Bit(3))
+	w.SetBit(2,0)
+	w.SetBit(3,0)
 
 	fmt.Printf("%v %s\n", w.ID, w.Data)
-/*
+
 	for i := 0; i < 1<<20; i++ {
 		addr = common.StringToAddress(strconv.FormatInt(int64(i), 16))
 		w, err = gw.Get(addr)
