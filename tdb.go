@@ -66,10 +66,10 @@ func (w *Wallet) Set(bitpos int64) {
 		'9': 9,
 		'a': 10,
 		'b': 11,
-		'c': 13,
-		'd': 14,
-		'e': 15,
-		'f': 16,
+		'c': 12,
+		'd': 13,
+		'e': 14,
+		'f': 15,
 		'g': 0,
 		'h': 1,
 	}
@@ -96,23 +96,266 @@ func (w *Wallet) Set(bitpos int64) {
 
 					ch := data[i]
 					if ch == '1' || ch == '0' {
-						return sum+1, length
+						return sum, length
 					}
 					sum = sum*16 + conv[ch]
 					length++
 				}
-				return sum+1, length
+				return sum, length
 			}(data[i+1:])
 
 			i += l
-			for k=0; k<s; k++ {
+			if s == 0 {
+				s = 1
+			}
+			for k = 0; k < s; k++ {
 				big.SetBit(big, bigpos, uint(bit))
 				bigpos++
 			}
 		}
 	}
 	big.SetBit(big, int(bitpos), 1)
-	w.Data[fgpos]=CreateOneFG(big.Bytes())
+	w.Data[fgpos] = CreateOneFG(big.Bytes())
+}
+
+func (w *Wallet) SetBit(bitpos int64, bit int) {
+	conv := map[byte]int64{
+		'0': 0,
+		'1': 1,
+		'2': 2,
+		'3': 3,
+		'4': 4,
+		'5': 5,
+		'6': 6,
+		'7': 7,
+		'8': 8,
+		'9': 9,
+		'a': 10,
+		'b': 11,
+		'c': 12,
+		'd': 13,
+		'e': 14,
+		'f': 15,
+		'g': 0,
+		'h': 1,
+	}
+	convint := func(num int64) string {
+		if num == 0 || num == 1{
+			return string("")
+		}
+		hexbyte := []byte(strconv.FormatInt(num, 16))
+		for i, v := range hexbyte {
+			if v == '1' {
+				hexbyte[i] = 'h'
+			}
+			if v == '0' {
+				hexbyte[i] = 'g'
+			}
+		}
+		return string(hexbyte)
+	}
+
+	fg := w.Data[bitpos/FG_BIT_SIZE]
+	fglength := len(fg.Data)
+	bitpos = bitpos%FG_BIT_SIZE
+	org := fg.Data
+	type POS struct{
+		val int64
+		pos int64
+		len int64
+		off int64
+		offlen int64
+	}
+
+	per, cur, next, current := POS{}, POS{}, POS{}, POS{}
+
+	var found bool
+	for i:=0; i<fglength; {
+		ch := fg.Data[i]
+		val := conv[ch]
+		if ch == '1' || ch == '0' {
+			if (found == false) {
+				per = cur
+			}
+			cur.pos += cur.len
+			cur.len = 0
+			cur.val = val
+			cur.off = int64(i)
+			cur.offlen = 0
+
+			s, l := func(data []byte) (sum int64, length int64) {
+				sum = 0
+				length = 1
+				for i := 0; i < len(data); i++ {
+					ch := data[i]
+					if ch == '1' || ch == '0' {
+						return sum, length
+					}
+					sum = sum*16 + conv[ch]
+					length++
+				}
+				return sum, length
+			}(fg.Data[i+1:])
+
+			if s==0 {
+				s=1
+			}
+			cur.len = s
+			cur.offlen += l
+
+			if(found) {
+				next = cur
+				break
+			}
+
+			i += int(l)
+			if bitpos >=cur.pos && bitpos<(cur.pos+cur.len) {
+				found = true
+				current = cur
+			}
+		}
+	}
+
+	if current.val == int64(bit) {
+		return
+	}
+
+	//fmt.Println(per, current, next)
+
+	cur = current
+	var end int64
+	if(next.off > 0){
+		end = next.off+next.offlen
+	}else{
+		end = cur.off+cur.offlen
+	}
+
+	if bitpos == current.pos {
+		per.len += 1
+		per.val = cur.val^1
+		cur.len -= 1
+	}else if bitpos == current.pos+current.len-1 {
+		next.len += 1
+		next.val = cur.val^1
+		cur.len -= 1
+	}else {
+		end = cur.off+cur.offlen
+		per.len = bitpos - cur.pos
+		per.val = cur.val
+		per.off = cur.off
+
+		next.len = current.pos+current.len - bitpos -1
+		next.val = cur.val
+		next.off = 0
+
+		cur.val = cur.val^1
+		cur.len = 1
+	}
+
+	if( cur.len == 0){
+		per.len += next.len
+		next.len = 0
+	}
+
+	zo := []string{"0", "1"}
+	data := []byte{}
+
+	if (per.len > 0) {
+		b := bytes.Buffer{}
+		data = append(data, org[0:per.off]...)
+		b.WriteString(zo[per.val])
+		b.WriteString(convint(per.len))
+		data = append(data, b.Bytes()...)
+	}
+
+	if(cur.len > 0){
+		b := bytes.Buffer{}
+		b.WriteString(zo[cur.val])
+		b.WriteString(convint(cur.len))
+		data = append(data, b.Bytes()...)
+	}
+
+	if(next.len > 0){
+		b := bytes.Buffer{}
+		b.WriteString(zo[next.val])
+		b.WriteString(convint(next.len))
+		data = append(data, b.Bytes()...)
+	}
+
+	data = append(data, org[end:]...)
+
+	w.Data[bitpos/FG_BIT_SIZE].Data = data
+	//fmt.Printf("%s\n", data)
+}
+
+func (w *Wallet) Bit(bitpos int64) int {
+	conv := map[byte]int64{
+		'0': 0,
+		'1': 1,
+		'2': 2,
+		'3': 3,
+		'4': 4,
+		'5': 5,
+		'6': 6,
+		'7': 7,
+		'8': 8,
+		'9': 9,
+		'a': 10,
+		'b': 11,
+		'c': 12,
+		'd': 13,
+		'e': 14,
+		'f': 15,
+		'g': 0,
+		'h': 1,
+	}
+
+	fg := w.Data[bitpos/FG_BIT_SIZE]
+	fglength := len(fg.Data)
+	bitpos = bitpos%FG_BIT_SIZE
+
+	type POS struct{
+		val int64
+		pos int64
+		len int64
+	}
+
+	cur := POS{}
+
+	for i:=0; i<fglength; {
+		ch := fg.Data[i]
+		val := conv[ch]
+		if ch == '1' || ch == '0' {
+			cur.pos += cur.len
+			cur.len = 0
+			cur.val = val
+
+			s, l := func(data []byte) (sum int64, length int64) {
+				sum = 0
+				length = 1
+				for i := 0; i < len(data); i++ {
+					ch := data[i]
+					if ch == '1' || ch == '0' {
+						return sum, length
+					}
+					sum = sum*16 + conv[ch]
+					length++
+				}
+				return sum, length
+			}(fg.Data[i+1:])
+
+			if s==0 {
+				s=1
+			}
+			cur.len = s
+
+			i += int(l)
+			if bitpos >=cur.pos && bitpos<(cur.pos+cur.len) {
+				return int(cur.val)
+			}
+		}
+	}
+	return int(cur.val)
 }
 
 func (w *Wallet) FGCompress() {
@@ -180,7 +423,8 @@ func (gw *GWallet) ReleaseGWallet() {
 func CreateOneFG(data []byte) FG_data {
 	big := &big.Int{}
 	big.SetBytes(data)
-	bitlen := FG_BIT_SIZE//len(data) * 8
+
+	bitlen := FG_BIT_SIZE //len(data) * 8
 	big.SetBit(big, bitlen, big.Bit(bitlen-1)^1)
 
 	perbit := big.Bit(0)
@@ -326,28 +570,26 @@ func main() {
 
 	*/
 
-
-
-
 	gw, err := NewGWallet("path/to/db")
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer gw.ReleaseGWallet()
 
-	addr := common.StringToAddress("1")
+	addr := common.StringToAddress("0")
 	w, err := gw.Get(addr)
 
-	for i:=0; i<1<<20; i++ {
+	fmt.Printf("%v %s\n", w.ID, w.Data)
+/*
+	for i := 0; i < 1<<20; i++ {
 		addr = common.StringToAddress(strconv.FormatInt(int64(i), 16))
 		w, err = gw.Get(addr)
-		w.Set(int64(i))
+		w.SetBit(int64(i), 1)
 		gw.Put(w)
 
-		fmt.Println(i)
-
+		if(i%4096 == 0) {
+			fmt.Println(i)
+		}
 	}
-
-	fmt.Printf("%v %s", w.ID, w.Data)
-
+*/
 }
