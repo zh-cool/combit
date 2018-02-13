@@ -30,7 +30,7 @@ type FG_data struct {
 
 type Wallet struct {
 	ID   common.Address
-	Data [FG_LENGTH]FG_data
+	Data []byte
 }
 
 func (w *Wallet) Bytes() []byte {
@@ -51,7 +51,7 @@ func (w *Wallet) toWallet(data []byte) {
 		fmt.Println(err)
 	}
 }
-
+/*
 func (w *Wallet) Set(bitpos int64) {
 	conv := map[byte]int64{
 		'0': 0,
@@ -75,10 +75,8 @@ func (w *Wallet) Set(bitpos int64) {
 	}
 
 	var i, k int64
-	fgpos := bitpos / FG_BIT_SIZE
-	bitpos = bitpos % FG_BIT_SIZE
 
-	data := w.Data[fgpos].Data
+	data := w.Data[:]
 	length := len(data)
 
 	big := &big.Int{}
@@ -115,9 +113,9 @@ func (w *Wallet) Set(bitpos int64) {
 		}
 	}
 	big.SetBit(big, int(bitpos), 1)
-	w.Data[fgpos] = CreateOneFG(big.Bytes())
+	//w.Data = CreateOneFG(big.Bytes())
 }
-
+*/
 func (w *Wallet) SetBit(bitpos int64, bit int) {
 	conv := map[byte]int64{
 		'0': 0,
@@ -155,10 +153,8 @@ func (w *Wallet) SetBit(bitpos int64, bit int) {
 		return string(hexbyte)
 	}
 
-	fg := w.Data[bitpos/FG_BIT_SIZE]
-	fglength := len(fg.Data)
-	bitpos = bitpos%FG_BIT_SIZE
-	org := fg.Data
+	wlength := len(w.Data)
+	org := w.Data[:]
 	type POS struct{
 		val int64
 		pos int64
@@ -170,8 +166,8 @@ func (w *Wallet) SetBit(bitpos int64, bit int) {
 	per, cur, next, current := POS{}, POS{}, POS{}, POS{}
 
 	var found bool
-	for i:=0; i<fglength; {
-		ch := fg.Data[i]
+	for i:=0; i<wlength; {
+		ch := w.Data[i]
 		val := conv[ch]
 		if ch == '1' || ch == '0' {
 			if (found == false) {
@@ -195,7 +191,7 @@ func (w *Wallet) SetBit(bitpos int64, bit int) {
 					length++
 				}
 				return sum, length
-			}(fg.Data[i+1:])
+			}(w.Data[i+1:])
 
 			if s==0 {
 				s=1
@@ -284,7 +280,7 @@ func (w *Wallet) SetBit(bitpos int64, bit int) {
 
 	data = append(data, org[end:]...)
 
-	w.Data[bitpos/FG_BIT_SIZE].Data = data
+	w.Data = data
 	//fmt.Printf("%s\n", data)
 }
 
@@ -310,9 +306,7 @@ func (w *Wallet) Bit(bitpos int64) int {
 		'h': 1,
 	}
 
-	fg := w.Data[bitpos/FG_BIT_SIZE]
-	fglength := len(fg.Data)
-	bitpos = bitpos%FG_BIT_SIZE
+	wlength := len(w.Data)
 
 	type POS struct{
 		val int64
@@ -322,8 +316,8 @@ func (w *Wallet) Bit(bitpos int64) int {
 
 	cur := POS{}
 
-	for i:=0; i<fglength; {
-		ch := fg.Data[i]
+	for i:=0; i<wlength; {
+		ch := w.Data[i]
 		val := conv[ch]
 		if ch == '1' || ch == '0' {
 			cur.pos += cur.len
@@ -342,7 +336,7 @@ func (w *Wallet) Bit(bitpos int64) int {
 					length++
 				}
 				return sum, length
-			}(fg.Data[i+1:])
+			}(w.Data[i+1:])
 
 			if s==0 {
 				s=1
@@ -359,22 +353,20 @@ func (w *Wallet) Bit(bitpos int64) int {
 }
 
 func (w *Wallet) FGCompress() {
-	for _, v := range w.Data {
+
 		b := bytes.NewBuffer([]byte{})
 		wr := zlib.NewWriter(b)
-		wr.Write(v.Data)
+		wr.Write(w.Data)
 		wr.Close()
-		v.Data = b.Bytes()
-	}
+		w.Data = b.Bytes()
 }
 
 func (w *Wallet) Compress() []byte {
 	b := bytes.NewBuffer([]byte{})
 	W := zlib.NewWriter(b)
 
-	for _, v := range w.Data {
-		W.Write(v.Data)
-	}
+	W.Write(w.Data)
+
 	W.Close()
 	return b.Bytes()
 }
@@ -385,10 +377,10 @@ func (w *Wallet) Statistics() {
 	b := bytes.NewBuffer([]byte{})
 	W := zlib.NewWriter(b)
 
-	for _, v := range w.Data {
-		sum += int64(len(v.Data))
-		W.Write(v.Data)
-	}
+
+		sum += int64(len(w.Data))
+		W.Write(w.Data)
+
 	W.Close()
 
 	l := len(b.Bytes())
@@ -402,13 +394,12 @@ type GWallet struct {
 
 func (gw *GWallet) Get(address common.Address) (w *Wallet, err error) {
 	data, err := gw.db.Get(address[:], nil)
-	w = &Wallet{}
-	w.toWallet(data)
+	w = &Wallet{address, data}
 	return w, err
 }
 
 func (gw *GWallet) Put(w *Wallet) error {
-	return gw.db.Put(w.ID[:], w.Bytes(), nil)
+	return gw.db.Put(w.ID[:], w.Data, nil)
 }
 
 func NewGWallet(path string) (*GWallet, error) {
@@ -420,11 +411,11 @@ func (gw *GWallet) ReleaseGWallet() {
 	gw.db.Close()
 }
 
-func CreateOneFG(data []byte) FG_data {
+func CreateOneFG(data []byte) []byte {
 	big := &big.Int{}
 	big.SetBytes(data)
 
-	bitlen := FG_BIT_SIZE //len(data) * 8
+	bitlen := len(data) << 3
 	big.SetBit(big, bitlen, big.Bit(bitlen-1)^1)
 
 	perbit := big.Bit(0)
@@ -454,17 +445,13 @@ func CreateOneFG(data []byte) FG_data {
 		}
 	}
 
-	return FG_data{buf.Bytes()}
+	return buf.Bytes()
 }
 
 func CreateOneWallet(addr common.Address, data []byte) *Wallet {
 	w := &Wallet{ID: addr}
+	w.Data = CreateOneFG(data[:])
 	/*
-		for i:=FG_LENGTH-1; i<FG_LENGTH; i++ {
-			begin := FG_BYTE_SIZE*i
-			w.Data[i] = CreateOneFG(data[begin:begin+FG_BYTE_SIZE])
-		}
-	*/
 	FT_SIZE := 4
 	PT_LENGTH := FG_LENGTH / FT_SIZE
 	fgCH := make(chan int, FT_SIZE)
@@ -475,18 +462,18 @@ func CreateOneWallet(addr common.Address, data []byte) *Wallet {
 	for i := 0; i < FT_SIZE; i++ {
 		<-fgCH
 	}
-
+	*/
 	return w
 }
-
+/*
 func CreatePartWallet(start int, end int, data []byte, w *Wallet, fgCH chan int) {
 	for i := start; i < end; i++ {
 		begin := FG_BYTE_SIZE * i
-		w.Data[i] = CreateOneFG(data[begin : begin+FG_BYTE_SIZE])
+		CreateOneFG(data[begin : begin+FG_BYTE_SIZE])
 	}
 	fgCH <- 1
 }
-
+*/
 func RandData(length int64, data []byte) {
 
 	src := rand.NewSource(time.Now().Unix() + int64(0))
@@ -600,49 +587,45 @@ func divid_conquer(data []byte) []byte{
 
 func main() {
 
-	//data := []byte{0,1,0,0,0,1,1}
-	data := make([]byte, 1<<30)
+	/*
+	data := make([]byte, 1<<10)
 	result := divid_conquer(data)
 	fmt.Printf("%s\n", result)
-
-	/*
-		addr := common.StringToAddress("0")
-
-		data := make([]byte, CONBIN_BYTE_SIZE)
-		//RandData(CONBIN_BIT_SIZE, data)
-
-		w := CreateOneWallet(addr, data)
-
-		w.Statistics()
 	*/
 
-/*
+	/*
+	addr := common.StringToAddress("0")
+	data := make([]byte, CONBIN_BYTE_SIZE)
+	//RandData(CONBIN_BIT_SIZE, data)
+	w := CreateOneWallet(addr, data)
+	w.Statistics()
+	*/
+	addr := common.StringToAddress("0")
+	w := &Wallet{addr, []byte("0hgggggggg")}
+
+
 	gw, err := NewGWallet("path/to/db")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	defer gw.ReleaseGWallet()
-
-	addr := common.StringToAddress("0")
-	w, err := gw.Get(addr)
-	w.SetBit(2,1)
-	w.SetBit(3,1)
-	fmt.Println(w.Bit(2), w.Bit(3))
-	w.SetBit(2,0)
-	w.SetBit(3,0)
-
+	w, _ = gw.Get(addr)
 	fmt.Printf("%v %s\n", w.ID, w.Data)
 
-	for i := 0; i < 1<<20; i++ {
-		addr = common.StringToAddress(strconv.FormatInt(int64(i), 16))
-		w, err = gw.Get(addr)
-		w.SetBit(int64(i), 1)
+	/*
+	var i  int64
+	for i=0; i<1<<20; i++ {
+		addr := common.StringToAddress(strconv.FormatInt(i, 16))
+		w, _ = gw.Get(addr)
+		w.SetBit(i, 0)
+		//w.SetBit(i, 1)
 		gw.Put(w)
 
-		if(i%4096 == 0) {
-			fmt.Println(i)
+		if(i%8196 == 0) {
+			fmt.Printf("%d %v %s\n", i, w.ID, w.Data)
 		}
 	}
-*/
+	*/
+
 }
