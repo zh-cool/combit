@@ -1,0 +1,1 @@
+./build/ucoin --listen-port 20060 --datadir 20060 --loglevel 1 --bootnodes enode://86bac922a0cd22a02f5c213fc5c3b909ec0ca794aea0a085f09103d474bee7127ae19dcef39cc5559af0a39b5dead179480c19a2a42d6b42698d11cb1c98334c@192.168.1.4:20000 console
