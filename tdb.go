@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/syndtr/goleveldb/leveldb"
+	"errors"
 )
 
 const (
@@ -402,6 +403,94 @@ func (gw *GWallet) Put(w *Wallet) error {
 	return gw.db.Put(w.ID[:], w.Data, nil)
 }
 
+func (gw *GWallet) Move(dst, src common.Address, bin int) error {
+	conv := map[byte]int64{
+		'0': 0,
+		'1': 1,
+		'2': 2,
+		'3': 3,
+		'4': 4,
+		'5': 5,
+		'6': 6,
+		'7': 7,
+		'8': 8,
+		'9': 9,
+		'a': 10,
+		'b': 11,
+		'c': 12,
+		'd': 13,
+		'e': 14,
+		'f': 15,
+		'g': 0,
+		'h': 1,
+	}
+	var wd, ws *Wallet
+	var err error
+	if wd, err = gw.Get(dst); err != nil {
+		return err
+	}
+
+	if ws, err = gw.Get(src); err != nil {
+		return err
+	}
+
+	dlen := len(ws.Data)
+	var pos int64
+	var spos []int64
+	for i:=0; i<dlen; {
+		ch := ws.Data[i]
+		if ch == '0' || ch == '1'{
+			s, l := func(data []byte) (sum int64, length int64) {
+				sum = 0
+				length = 1
+				for i := 0; i < len(data); i++ {
+					ch := data[i]
+					if ch == '1' || ch == '0' {
+						return sum, length
+					}
+					sum = sum*16 + conv[ch]
+					length++
+				}
+				return sum, length
+			}(ws.Data[i+1:])
+			if s == 0 {
+				s = 1
+			}
+			i += int(l)
+
+			if ch == '0' {
+				pos += s
+			}else{
+				for s > 0 && bin > 0 {
+					spos = append(spos, pos)
+					pos++
+					s--
+					bin--
+				}
+				if bin <= 0 {
+					break
+				}
+			}
+		}
+	}
+
+	if bin > 0 {
+		return errors.New("Not Enough ubin")
+	}
+
+    fmt.Printf("%v %s\n", ws.ID, ws.Data)
+    fmt.Printf("%v %s\n", wd.ID, wd.Data)
+	for _, v := range spos {
+		ws.SetBit(v, 0)
+		wd.SetBit(v, 1)
+	}
+
+
+    fmt.Printf("%v %s\n", ws.ID, ws.Data)
+    fmt.Printf("%v %s\n", wd.ID, wd.Data)
+	return nil
+}
+
 func NewGWallet(path string) (*GWallet, error) {
 	db, err := leveldb.OpenFile(path, nil)
 	return &GWallet{db}, err
@@ -601,7 +690,7 @@ func main() {
 	w.Statistics()
 	*/
 	addr := common.StringToAddress("0")
-	w := &Wallet{addr, []byte("0hgggggggg")}
+	//w := &Wallet{addr, []byte("0hgggggggg")}
 
 
 	gw, err := NewGWallet("path/to/db")
@@ -610,22 +699,35 @@ func main() {
 		return
 	}
 	defer gw.ReleaseGWallet()
-	w, _ = gw.Get(addr)
-	fmt.Printf("%v %s\n", w.ID, w.Data)
 
+
+	//w, _ = gw.Get(addr)
 	/*
+	fmt.Printf("%v %s\n", w.ID, w.Data)
+	w.SetBit(0,1)
+	w.SetBit(1,1)
+	w.SetBit(2,1)
+	w.SetBit(3,1)
+	w.SetBit(4,1)
+	w.SetBit(5,1)
+	fmt.Printf("%v %s\n", w.ID, w.Data)
+	gw.Put(w)
+	*/
+    addr1 := common.StringToAddress("1")
+	gw.Move(addr1, addr, 5)
+	fmt.Println("---------")
+	gw.Move(addr1, addr, 9)
+
+/*
 	var i  int64
 	for i=0; i<1<<20; i++ {
 		addr := common.StringToAddress(strconv.FormatInt(i, 16))
-		w, _ = gw.Get(addr)
-		w.SetBit(i, 0)
-		//w.SetBit(i, 1)
+		w.ID = addr
 		gw.Put(w)
 
 		if(i%8196 == 0) {
 			fmt.Printf("%d %v %s\n", i, w.ID, w.Data)
 		}
 	}
-	*/
-
+*/
 }
