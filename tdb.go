@@ -13,6 +13,32 @@ import (
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"errors"
+	"go-unitcoin/libraries/chain/space/protocol"
+	"go-unitcoin/libraries/chain/util"
+	"go-unitcoin/libraries/chain/space"
+)
+
+var (
+	conv = map[byte]int64{
+		'0': 0,
+		'1': 1,
+		'2': 2,
+		'3': 3,
+		'4': 4,
+		'5': 5,
+		'6': 6,
+		'7': 7,
+		'8': 8,
+		'9': 9,
+		'a': 10,
+		'b': 11,
+		'c': 12,
+		'd': 13,
+		'e': 14,
+		'f': 15,
+		'g': 0,
+		'h': 1,
+	}
 )
 
 const (
@@ -23,6 +49,11 @@ const (
 	FG_BIT_SIZE  = (CONBIN_BIT_SIZE / FG_LENGTH)
 	FG_BYTE_SIZE = (FG_BIT_SIZE >> 3)
 )
+
+type Req_verify struct {
+	From	common.Address
+	Number  uint
+}
 
 type FG_data struct {
 	//	Len int
@@ -118,26 +149,6 @@ func (w *Wallet) Set(bitpos int64) {
 }
 */
 func (w *Wallet) SetBit(bitpos int64, bit int) {
-	conv := map[byte]int64{
-		'0': 0,
-		'1': 1,
-		'2': 2,
-		'3': 3,
-		'4': 4,
-		'5': 5,
-		'6': 6,
-		'7': 7,
-		'8': 8,
-		'9': 9,
-		'a': 10,
-		'b': 11,
-		'c': 12,
-		'd': 13,
-		'e': 14,
-		'f': 15,
-		'g': 0,
-		'h': 1,
-	}
 	convint := func(num int64) string {
 		if num == 0 || num == 1{
 			return string("")
@@ -286,27 +297,6 @@ func (w *Wallet) SetBit(bitpos int64, bit int) {
 }
 
 func (w *Wallet) Bit(bitpos int64) int {
-	conv := map[byte]int64{
-		'0': 0,
-		'1': 1,
-		'2': 2,
-		'3': 3,
-		'4': 4,
-		'5': 5,
-		'6': 6,
-		'7': 7,
-		'8': 8,
-		'9': 9,
-		'a': 10,
-		'b': 11,
-		'c': 12,
-		'd': 13,
-		'e': 14,
-		'f': 15,
-		'g': 0,
-		'h': 1,
-	}
-
 	wlength := len(w.Data)
 
 	type POS struct{
@@ -353,6 +343,83 @@ func (w *Wallet) Bit(bitpos int64) int {
 	return int(cur.val)
 }
 
+func (w *Wallet) getPos(bin int64) []int64 {
+	dlen := len(w.Data)
+	var pos int64
+	var spos []int64
+
+	for i:=0; i<dlen; {
+		ch := w.Data[i]
+		if ch == '0' || ch == '1'{
+			s, l := func(data []byte) (sum int64, length int64) {
+				sum = 0
+				length = 1
+				for i := 0; i < len(data); i++ {
+					ch := data[i]
+					if ch == '1' || ch == '0' {
+						return sum, length
+					}
+					sum = sum*16 + conv[ch]
+					length++
+				}
+				return sum, length
+			}(w.Data[i+1:])
+			if s == 0 {
+				s = 1
+			}
+			i += int(l)
+
+			if ch == '0' {
+				pos += s
+			}else{
+				for s > 0 && bin > 0 {
+					spos = append(spos, pos)
+					pos++
+					s--
+					bin--
+				}
+				if bin <= 0 {
+					break
+				}
+			}
+		}
+	}
+	return spos
+}
+
+func (w *Wallet) GetBalance() int64 {
+	dlen := len(w.Data)
+	var balance int64
+
+	for i:=0; i<dlen; {
+		ch := w.Data[i]
+		if ch == '0' || ch == '1'{
+			s, l := func(data []byte) (sum int64, length int64) {
+				sum = 0
+				length = 1
+				for i := 0; i < len(data); i++ {
+					ch := data[i]
+					if ch == '1' || ch == '0' {
+						return sum, length
+					}
+					sum = sum*16 + conv[ch]
+					length++
+				}
+				return sum, length
+			}(w.Data[i+1:])
+			if s == 0 {
+				s = 1
+			}
+			i += int(l)
+
+			if ch == '1' {
+				balance += s
+			}
+		}
+	}
+	return balance
+}
+
 func (w *Wallet) FGCompress() {
 
 		b := bytes.NewBuffer([]byte{})
@@ -390,7 +457,17 @@ func (w *Wallet) Statistics() {
 }
 
 type GWallet struct {
-	db *leveldb.DB
+	db 			*leveldb.DB
+	ID 			uint
+	txpool  	*util.TxPool
+	blockchain *space_chain.BlockChain
+	txCH 		chan protocol.TxPreEvent
+	Verify  	chan Req_verify
+
+	blockNum uint64
+	ROOT    common.Hash
+	GHASH   []common.Hash
+	GADDR 	[]common.Address
 }
 
 func (gw *GWallet) Get(address common.Address) (w *Wallet, err error) {
@@ -404,26 +481,7 @@ func (gw *GWallet) Put(w *Wallet) error {
 }
 
 func (gw *GWallet) Move(dst, src common.Address, bin int) error {
-	conv := map[byte]int64{
-		'0': 0,
-		'1': 1,
-		'2': 2,
-		'3': 3,
-		'4': 4,
-		'5': 5,
-		'6': 6,
-		'7': 7,
-		'8': 8,
-		'9': 9,
-		'a': 10,
-		'b': 11,
-		'c': 12,
-		'd': 13,
-		'e': 14,
-		'f': 15,
-		'g': 0,
-		'h': 1,
-	}
+
 	var wd, ws *Wallet
 	var err error
 	if wd, err = gw.Get(dst); err != nil {
@@ -491,9 +549,75 @@ func (gw *GWallet) Move(dst, src common.Address, bin int) error {
 	return nil
 }
 
+func (gw *GWallet) Update(block *protocol.Block) {
+	txs := block.Transactions()
+
+	for _, tx := range txs {
+		signer := protocol.MakeSigner()
+		from, _:= protocol.Sender(signer, tx)
+		value := tx.Value()
+		to := tx.To()
+		gw.Move(*to, from, int(value.Int64()))
+	}
+}
+
+func (gw *GWallet) CheckTxBin() {
+	for {
+		select {
+		case event := <-gw.txCH:
+			fmt.Println(event)
+			from, num := func(tx *protocol.Tx) (common.Address, uint) {
+				signer := protocol.MakeSigner()
+				from, _ := protocol.Sender(signer, tx)
+				value := tx.Value()
+				value.Int64()
+				return from, uint(value.Uint64())
+
+			}(event.Transaction)
+			gw.Verify <- Req_verify{from, num}
+		}
+	}
+}
+
+func (gw *GWallet) Worker() {
+	for {
+		select {
+		case v := <-gw.Verify:
+			w, _ := gw.Get(v.From)
+			pos := w.getPos(int64(v.Number))
+			fmt.Println(pos)
+		}
+	}
+}
+
+func (gw *GWallet) Sync() {
+	forceSync := time.NewTicker(10 * time.Second )
+	defer forceSync.Stop()
+
+	for {
+		select {
+		case <-forceSync.C:
+			cur := gw.blockchain.CurrentBlock().GetNumberU64()
+			for ; gw.blockNum < cur+1; gw.blockNum++ {
+				block := gw.blockchain.GetBlockByNumber(gw.blockNum)
+				gw.Update(block)
+			}
+		}
+	}
+}
+
+func (gw *GWallet) Start() {
+    gw.txCH = make(chan protocol.TxPreEvent)
+	gw.txpool.SubscribeTxPreEvent(gw.txCH)
+
+	go gw.CheckTxBin()
+	go gw.Worker()
+	go gw.Sync()
+}
+
 func NewGWallet(path string) (*GWallet, error) {
 	db, err := leveldb.OpenFile(path, nil)
-	return &GWallet{db}, err
+	return &GWallet{db:db}, err
 }
 
 func (gw *GWallet) ReleaseGWallet() {
