@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto/sha3"
 )
 
 func main() {
@@ -13,7 +13,7 @@ func main() {
 
 	var i uint64
 
-	for i=0; i<1<<2; i++ {
+	for i = 0; i < 1<<2; i++ {
 		hw := sha3.NewKeccak256()
 		hw.Write(data[:])
 		hw.Sum(result[:0])
@@ -30,18 +30,17 @@ func main() {
 	hw.Sum(result[:0])
 	fmt.Printf("%x\n", result)
 
-
 	Hash()
 }
 
 func Hash() {
-	var data [1<<23]common.Hash
+	var data [1 << 23]common.Hash
 
-	 i := len(data)/2 - 1
+	i := len(data)/2 - 1
 
-	for ; i>=1; i-- {
-		left := i<<1
-		right := i<<1+1
+	for ; i >= 1; i-- {
+		left := i << 1
+		right := i<<1 + 1
 		hw := sha3.NewKeccak256()
 		hw.Write(data[left][:])
 		hw.Write(data[right][:])
@@ -49,7 +48,6 @@ func Hash() {
 	}
 	fmt.Printf("%x\n", data[1])
 }
-
 
 func sum(b []byte) []byte {
 	return append(b, 'a')
