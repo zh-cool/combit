@@ -32,5 +32,4 @@ func main() {
 
 	ok := ecdsa.Verify(&prv.PublicKey, h[:], r, s)
 	fmt.Println(ok)
-
 }
