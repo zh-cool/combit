@@ -1,4 +1,4 @@
-package gwallet
+package main
 
 import (
 	"bytes"
@@ -862,4 +862,8 @@ func divid_conquer(data []byte) []byte {
 	}
 	dt := int(data[0])
 	return []byte(strconv.FormatInt(int64(dt), 16))
+}
+
+func main() {
+	fmt.Println("a")
 }
