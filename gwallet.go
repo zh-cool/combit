@@ -921,5 +921,40 @@ func divid_conquer(data []byte) []byte {
 }
 
 func main() {
-	fmt.Println("a")
+	/*
+	id := [8]byte{}
+	b := new(big.Int)
+	b.SetUint64(4)
+	b.SetBit(b, 64, 1)
+	fmt.Println(b.Bytes())
+	fmt.Println(id, append(id[:0], b.Bytes()...), id)
+	*/
+
+	db, _ := lvldb.NewLDBDatabase("path", 0, 0)
+	gw := NewGWallet(db)
+
+	id := [8]byte{}
+	addr := common.StringToAddress("a")
+	w := &Wallet{addr, 0, id[:], []byte("0hgggggggg")}
+
+	var i uint64
+	for i=0; i<2; i++ {
+		b := new(big.Int).SetUint64(i)
+		b.SetBit(b, 64, 1)
+		w.Addr = common.StringToAddress(strconv.FormatInt(int64(i), 16))
+		w.Sid = i
+
+		w.id = b.Bytes()[1:]
+		gw.Put(w)
+
+		fmt.Printf("%x, %v, %v, %s\n", w.Addr, w.Sid, w.id, w.Data)
+	}
+	//fmt.Printf("%x, %v, %v, %s\n", w.Addr, w.Sid, w.id, w.Data)
+	fmt.Println()
+	for i=0; i<2; i++ {
+		addr = common.StringToAddress(strconv.FormatInt(int64(i), 16))
+		w, _ := gw.Get(addr)
+		fmt.Printf("%x, %v, %v, %s\n", w.Addr, w.Sid, w.id, w.Data)
+	}
+	gw.ReleaseGWallet()
 }
