@@ -390,6 +390,62 @@ func (w *Wallet) GetPos(bin uint64) []uint64 {
 	return spos
 }
 
+func (w *Wallet) GetGPos(bin uint64, gid uint64) []uint64 {
+	dlen := len(w.Data)
+	var pos uint64
+	var spos []uint64
+
+	begin := gid*FG_BIT_SIZE
+	end := begin + FG_BIT_SIZE
+
+	for i := 0; i < dlen; {
+		ch := w.Data[i]
+		if ch == '0' || ch == '1' {
+			s, l := func(data []byte) (sum uint64, length uint64) {
+				sum = 0
+				length = 1
+				for i := 0; i < len(data); i++ {
+					ch := data[i]
+					if ch == '1' || ch == '0' {
+						return sum, length
+					}
+					sum = sum*16 + conv[ch]
+					length++
+				}
+				return sum, length
+			}(w.Data[i+1:])
+			if s == 0 {
+				s = 1
+			}
+			i += int(l)
+
+			if ch == '0' {
+				pos += s
+			} else {
+				if pos+s < begin {
+					pos += s
+					continue
+				}
+				for s > 0 && bin > 0 {
+					if pos > begin && pos < end {
+						spos = append(spos, pos)
+					}
+					pos++
+					s--
+					bin--
+				}
+				if bin <= 0 {
+					break
+				}
+			}
+			if pos >= end {
+				break
+			}
+		}
+	}
+	return spos
+}
+
 func (w *Wallet) GetBalance() uint64 {
 	dlen := len(w.Data)
 	var balance uint64
