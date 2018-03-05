@@ -16,6 +16,7 @@ import (
 	"go-unitcoin/libraries/chain/space/protocol"
 	"go-unitcoin/libraries/chain/util"
 	"go-unitcoin/libraries/chain/space"
+	"go-unitcoin/libraries/crypto/sha3"
 )
 
 var (
@@ -61,7 +62,8 @@ type FG_data struct {
 }
 
 type Wallet struct {
-	ID   common.Address
+	Addr   common.Address
+	sid  uint64             //id in space
 	Data []byte
 }
 
@@ -456,6 +458,7 @@ func (w *Wallet) Statistics() {
 	fmt.Printf("Compress %dByte %dKB\n", l, l/1024)
 }
 
+
 type GWallet struct {
 	db 			*leveldb.DB
 	ID 			uint
@@ -472,12 +475,22 @@ type GWallet struct {
 
 func (gw *GWallet) Get(address common.Address) (w *Wallet, err error) {
 	data, err := gw.db.Get(address[:], nil)
-	w = &Wallet{address, data}
+
+	id, _ := gw.db.Get(append(address[:], 'i', 'd'), nil)
+
+	sid := new(big.Int)
+	sid.SetBytes(id)
+
+	w = &Wallet{address, sid.Uint64(), data}
 	return w, err
 }
 
 func (gw *GWallet) Put(w *Wallet) error {
-	return gw.db.Put(w.ID[:], w.Data, nil)
+	id := new(big.Int)
+	id.SetUint64(w.sid)
+	id.Bytes()
+	gw.db.Put(append(w.Addr[:], 'i', 'd'), id.Bytes(), nil)
+	return gw.db.Put(w.Addr[:], w.Data, nil)
 }
 
 func (gw *GWallet) Move(dst, src common.Address, bin int) error {
@@ -536,16 +549,16 @@ func (gw *GWallet) Move(dst, src common.Address, bin int) error {
 		return errors.New("Not Enough ubin")
 	}
 
-    fmt.Printf("%v %s\n", ws.ID, ws.Data)
-    fmt.Printf("%v %s\n", wd.ID, wd.Data)
+    fmt.Printf("%v %s\n", ws.Addr, ws.Data)
+    fmt.Printf("%v %s\n", wd.Addr, wd.Data)
 	for _, v := range spos {
 		ws.SetBit(v, 0)
 		wd.SetBit(v, 1)
 	}
 
 
-    fmt.Printf("%v %s\n", ws.ID, ws.Data)
-    fmt.Printf("%v %s\n", wd.ID, wd.Data)
+    fmt.Printf("%v %s\n", ws.Addr, ws.Data)
+    fmt.Printf("%v %s\n", wd.Addr, wd.Data)
 	return nil
 }
 
@@ -559,6 +572,49 @@ func (gw *GWallet) Update(block *protocol.Block) {
 		to := tx.To()
 		gw.Move(*to, from, int(value.Int64()))
 	}
+}
+
+func (gw *GWallet) Hash() common.Hash {
+
+	var mTree [1<<23]common.Hash
+	var offset int64
+	var i int64
+
+	offset = int64(gw.ID*FG_BIT_SIZE)
+
+	iter := gw.db.NewIterator(nil, nil)
+	for iter.Next() {
+		// Remember that the contents of the returned slice should not be modified, and
+		// only valid until the next call to Next.
+		key := iter.Key()
+		if len(key) != 20 {
+			continue
+		}
+		value := iter.Value()
+
+		w := &Wallet{common.Address{}, 0, value}
+		hw := sha3.NewKeccak256()
+		hw.Write(key)
+		leafe := int64(len(mTree)/2)
+
+		for i=0; i<FG_BIT_SIZE; i++ {
+			if w.Bit(i + offset) == 1 {
+				hw.Sum(mTree[i+leafe][:0])
+			}
+		}
+	}
+
+	i = int64(len(mTree)/2 - 1)
+	for ; i >= 1; i-- {
+		left := i << 1
+		right := i<<1 + 1
+		hw := sha3.NewKeccak256()
+		hw.Write(mTree[left][:])
+		hw.Write(mTree[right][:])
+		hw.Sum(mTree[i][:0])
+	}
+	fmt.Printf("%x\n", mTree[1])
+	return mTree[1]
 }
 
 func (gw *GWallet) CheckTxBin() {
@@ -615,9 +671,9 @@ func (gw *GWallet) Start() {
 	go gw.Sync()
 }
 
-func NewGWallet(path string) (*GWallet, error) {
+func NewGWallet(path string,txpool *util.TxPool, blockchain *space_chain.BlockChain) (*GWallet, error) {
 	db, err := leveldb.OpenFile(path, nil)
-	return &GWallet{db:db}, err
+	return &GWallet{db:db, txpool:txpool, blockchain:blockchain}, err
 }
 
 func (gw *GWallet) ReleaseGWallet() {
@@ -662,7 +718,7 @@ func CreateOneFG(data []byte) []byte {
 }
 
 func CreateOneWallet(addr common.Address, data []byte) *Wallet {
-	w := &Wallet{ID: addr}
+	w := &Wallet{Addr: addr}
 	w.Data = CreateOneFG(data[:])
 	/*
 	FT_SIZE := 4
@@ -813,11 +869,11 @@ func main() {
 	w := CreateOneWallet(addr, data)
 	w.Statistics()
 	*/
-	addr := common.StringToAddress("0")
-	//w := &Wallet{addr, []byte("0hgggggggg")}
+	//addr0 := common.StringToAddress("0")
+	//w := &Wallet{addr0, 0,[]byte("0hgggggggg")}
 
 
-	gw, err := NewGWallet("path/to/db")
+	gw, err := NewGWallet("/home/austin/data", nil, nil)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -837,10 +893,27 @@ func main() {
 	fmt.Printf("%v %s\n", w.ID, w.Data)
 	gw.Put(w)
 	*/
-    addr1 := common.StringToAddress("1")
-	gw.Move(addr1, addr, 5)
-	fmt.Println("---------")
-	gw.Move(addr1, addr, 9)
+    addr1 := common.HexToAddress("0x695A82e27d7A737FB88bd3AB3BaB57820F7995C3")
+    addr2 := common.HexToAddress("0xD10cEE08Fb224FAB2Ee62E0A5cCFCa800bD62289")
+    addr3 := common.HexToAddress("0x30aE7b22ffaa8ED59A973010215Ef9cDE6B250D9")
+    addr := [3]common.Address{addr1, addr2, addr3}
+
+    for i:=0; i<3; i++ {
+    	w := &Wallet{addr[i], uint64(i),[]byte("0hgggggggg")}
+
+    	for j:=0; j<100; j++ {
+    		w.SetBit(int64(j+i*100),1)
+		}
+    	gw.Put(w)
+	}
+
+	for i:=0; i<3; i++ {
+		w, _ := gw.Get(addr[i])
+		fmt.Printf("%x %v %s\n", w.Addr, w.sid, w.Data)
+	}
+
+	gw.Hash()
+
 
 /*
 	var i  int64

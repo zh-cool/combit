@@ -30,7 +30,12 @@ func main() {
 	hw.Sum(result[:0])
 	fmt.Printf("%x\n", result)
 
-	Hash()
+	hw.Sum(result[:0])
+	fmt.Printf("%x\n", result)
+
+	hw.Sum(result[:0])
+	fmt.Printf("%x\n", result)
+
 }
 
 func Hash() {
