@@ -63,16 +63,6 @@ func ExampleDecode_structTagTail() {
 	// with 1 element: err="rlp: too few elements for rlp.structWithTail"
 }
 
-
-func main() {
-	t := MyCoolType{[]byte("Austin"), 5, 6}
-	b := new(bytes.Buffer)
-	t.EncodeRLP(b)
-	fmt.Printf("%x\n", b.Bytes())
-	ExampleEncoder()
-	ExampleDecode_structTagTail()
-}
-
 type TestRlpStruct struct {
 	A      uint
 	B      string
@@ -81,7 +71,7 @@ type TestRlpStruct struct {
 }
 
 //rlp用法
-func TestRlp(t *testing.T) {
+func TestRlp() {
 	//1.将一个整数数组序列化
 	arrdata, err := rlp.EncodeToBytes([]uint{32, 28})
 	fmt.Printf("unuse err:%v\n", err)
@@ -105,9 +95,30 @@ func TestRlp(t *testing.T) {
 	//5.将任意一个struct序列化
 	//将一个struct序列化到reader中
 	_, r, err := rlp.EncodeToReader(TestRlpStruct{3, "44", []byte{0x12, 0x32}, big.NewInt(32)})
+	data := [128]byte{}
+	r.Read(data[:])
+	fmt.Println(data)
+	/*
 	var teststruct TestRlpStruct
 	err = rlp.Decode(r, &teststruct)
 	//{A:0x3, B:"44", C:[]uint8{0x12, 0x32}, BigInt:32}
 	fmt.Printf("teststruct=%#v\n", teststruct)
+	*/
+}
 
+type testRlp struct {
+	A	uint
+	B	uint
+	C	string
+}
+
+func main() {
+	ts := testRlp {1, 2, "Austin"}
+
+	b := new(bytes.Buffer)
+	rlp.Encode(b, &ts)
+
+	var tt testRlp
+	rlp.Decode(b, &tt)
+	fmt.Println(tt)
 }
