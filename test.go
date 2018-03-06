@@ -2,17 +2,36 @@ package main
 
 import (
 	"fmt"
-	"reflect"
+	_ "reflect"
+	"go-unitcoin/libraries/common"
+	"go-unitcoin/libraries/crypto/sha3"
+	"bytes"
+	"encoding/binary"
 )
 
 func main() {
-	var a int
+	var mTree [1 << 2]common.Hash
+	b := []byte{0}
 
-	b := make(map[reflect.Type]string)
-	b[reflect.TypeOf(a)] = "Hello"
+	hw := sha3.NewKeccak256()
+	hw.Write(b)
+	hw.Sum(mTree[2][:0])
+	hw.Sum(mTree[3][:0])
+	hw.Reset()
 
-	fmt.Println(b)
+	hw.Write(mTree[2][:])
+	hw.Write(mTree[3][:])
+	hw.Sum(mTree[1][:0])
+	fmt.Println(mTree)
 
-	str := b[]
-	fmt.Println(str)
+	buf := new(bytes.Buffer)
+	err := binary.Write(buf, binary.BigEndian, mTree)
+	//fmt.Println(buf.Bytes())
+	if err != nil {
+    	panic(err)
+	}
+
+	var gTree [1 << 2]common.Hash
+	binary.Read(buf, binary.BigEndian, &gTree)
+	fmt.Println(gTree)
 }

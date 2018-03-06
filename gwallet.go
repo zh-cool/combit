@@ -14,6 +14,7 @@ import (
 	"errors"
 	"go-unitcoin/libraries/crypto/sha3"
 	"go-unitcoin/libraries/db/lvldb"
+	"encoding/binary"
 )
 
 var (
@@ -519,6 +520,7 @@ type GWallet struct {
 
 	GID uint64
 
+	hash [1<<23]common.Hash
 	ROOT  common.Hash
 	GHASH []common.Hash
 	GADDR []common.Address
@@ -664,6 +666,26 @@ func (gw *GWallet) Move(dst, src common.Address, bin uint64) error {
 	fmt.Printf("%v %s\n", ws.Addr, ws.Data)
 	fmt.Printf("%v %s\n", wd.Addr, wd.Data)
 	return nil
+}
+
+func (gw *GWallet) uHash(pos uint64) {
+	begin := gw.GID*FG_BIT_SIZE
+	end := begin+FG_BIT_SIZE
+	if pos<begin || pos>=end {
+		return
+	}
+
+	var parent uint64
+	parent = pos <<1
+	for ; parent >= 1;  {
+		left := parent >> 1
+		right := parent >> 1 + 1
+		hw := sha3.NewKeccak256()
+		hw.Write(gw.hash[left][:])
+		hw.Write(gw.hash[right][:])
+		hw.Sum(gw.hash[parent][:0])
+		parent = parent << 1
+	}
 }
 
 /*
@@ -929,12 +951,13 @@ func main() {
 	fmt.Println(b.Bytes())
 	fmt.Println(id, append(id[:0], b.Bytes()...), id)
 	*/
+
 	addr := []string{"0x72909d2ab67F852C311a86d9bCA26bf141636ad4",
 		"0x57a2C7b3123b57bf0d180075A7aFe5EF77146080",
 		"0x470C21AebeCA771606e91B0bB8291Fa3066078f9",
 		"0xaEee1905d89d6fb76A7ac35656d6F66e3c2028b1",
 	}
-	db, _ := lvldb.NewLDBDatabase("/home/austin/go/src/go-unitcoin/20060/unitcoin/transactionchaindata", 0, 0)
+	db, _ := lvldb.NewLDBDatabase("path", 0, 0)
 	gw := NewGWallet(db)
 
 	id := [8]byte{}
@@ -954,15 +977,43 @@ func main() {
 	}
 	//fmt.Printf("%x, %v, %v, %s\n", w.Addr, w.Sid, w.id, w.Data)
 	fmt.Println()
+
+
+	var mTree [1 << 23]common.Hash
+	var leafe uint64
+
+	leafe = uint64(len(mTree) / 2)
 	for i = 0; i < 4; i++ {
 		w, _ := gw.Get(common.HexToAddress(addr[i]))
+		hw := sha3.NewKeccak256()
+		hw.Write(w.Addr[:])
+
 		for j=0; j<100; j++ {
 			w.SetBit(i*100+j, 1)
+			hw.Sum(mTree[leafe+i*100+j][:0])
 		}
 		gw.Put(w)
 		fmt.Printf("%x, %v, %v, %s\n", w.Addr, w.Sid, w.id, w.Data)
 	}
 
+	i = uint64(len(mTree)/2 - 1)
+	for ; i >= 1; i-- {
+		left := i << 1
+		right := i<<1 + 1
+		hw := sha3.NewKeccak256()
+		hw.Write(mTree[left][:])
+		hw.Write(mTree[right][:])
+		hw.Sum(mTree[i][:0])
+		hw.Reset()
+	}
+	fmt.Printf("%x %d\n", mTree[1], len(mTree[leafe:]))
+	gw.ROOT = mTree[1]
+
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, mTree[leafe:])
+	gw.db.Put([]byte("GHASH"), buf.Bytes())
+
+/*
 	w.SetBit(0, 1)
 	w.SetBit(1, 1)
 	w.SetBit(7, 1)
@@ -971,4 +1022,5 @@ func main() {
 	fmt.Println(pos)
 	pos = w.GetPos(16)
 	fmt.Println(pos)
+*/
 }
