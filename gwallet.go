@@ -395,7 +395,7 @@ func (w *Wallet) GetGPos(bin uint64, gid uint64) []uint64 {
 	var pos uint64
 	var spos []uint64
 
-	begin := gid*FG_BIT_SIZE
+	begin := gid * FG_BIT_SIZE
 	end := begin + FG_BIT_SIZE
 
 	for i := 0; i < dlen; {
@@ -427,7 +427,7 @@ func (w *Wallet) GetGPos(bin uint64, gid uint64) []uint64 {
 					continue
 				}
 				for s > 0 && bin > 0 {
-					if pos > begin && pos < end {
+					if pos >= begin && pos < end {
 						spos = append(spos, pos)
 					}
 					pos++
@@ -517,7 +517,7 @@ func (w *Wallet) Statistics() {
 type GWallet struct {
 	db *lvldb.LDBDatabase
 
-	GID  uint64
+	GID uint64
 
 	ROOT  common.Hash
 	GHASH []common.Hash
@@ -592,7 +592,7 @@ func (gw *GWallet) Get(address common.Address) (w *Wallet, err error) {
 }
 
 func (gw *GWallet) Put(w *Wallet) error {
-	if _, err := gw.db.Get(w.id); err!=nil {
+	if _, err := gw.db.Get(w.id); err != nil {
 		gw.db.Put(w.id, w.Addr[:])
 	}
 	return gw.db.Put(w.Addr[:], append(w.id, w.Data...))
@@ -738,7 +738,7 @@ func (gw *GWallet) Start() {
 }
 */
 
-func NewGWallet(db *lvldb.LDBDatabase) (*GWallet) {
+func NewGWallet(db *lvldb.LDBDatabase) *GWallet {
 	return &GWallet{db: db}
 }
 
@@ -929,32 +929,46 @@ func main() {
 	fmt.Println(b.Bytes())
 	fmt.Println(id, append(id[:0], b.Bytes()...), id)
 	*/
-
-	db, _ := lvldb.NewLDBDatabase("path", 0, 0)
+	addr := []string{"0x72909d2ab67F852C311a86d9bCA26bf141636ad4",
+		"0x57a2C7b3123b57bf0d180075A7aFe5EF77146080",
+		"0x470C21AebeCA771606e91B0bB8291Fa3066078f9",
+		"0xaEee1905d89d6fb76A7ac35656d6F66e3c2028b1",
+	}
+	db, _ := lvldb.NewLDBDatabase("/home/austin/go/src/go-unitcoin/20060/unitcoin/transactionchaindata", 0, 0)
 	gw := NewGWallet(db)
 
 	id := [8]byte{}
-	addr := common.StringToAddress("a")
-	w := &Wallet{addr, 0, id[:], []byte("0hgggggggg")}
+	w := &Wallet{common.Address{}, 0, id[:], []byte("0hgggggggg")}
+	defer gw.ReleaseGWallet()
 
-	var i uint64
-	for i=0; i<2; i++ {
+	var i, j uint64
+	for i = 0; i < 4; i++ {
 		b := new(big.Int).SetUint64(i)
 		b.SetBit(b, 64, 1)
-		w.Addr = common.StringToAddress(strconv.FormatInt(int64(i), 16))
+		w.Addr = common.HexToAddress(addr[i])
 		w.Sid = i
 
 		w.id = b.Bytes()[1:]
 		gw.Put(w)
-
 		fmt.Printf("%x, %v, %v, %s\n", w.Addr, w.Sid, w.id, w.Data)
 	}
 	//fmt.Printf("%x, %v, %v, %s\n", w.Addr, w.Sid, w.id, w.Data)
 	fmt.Println()
-	for i=0; i<2; i++ {
-		addr = common.StringToAddress(strconv.FormatInt(int64(i), 16))
-		w, _ := gw.Get(addr)
+	for i = 0; i < 4; i++ {
+		w, _ := gw.Get(common.HexToAddress(addr[i]))
+		for j=0; j<100; j++ {
+			w.SetBit(i*100+j, 1)
+		}
+		gw.Put(w)
 		fmt.Printf("%x, %v, %v, %s\n", w.Addr, w.Sid, w.id, w.Data)
 	}
-	gw.ReleaseGWallet()
+
+	w.SetBit(0, 1)
+	w.SetBit(1, 1)
+	w.SetBit(7, 1)
+	w.SetBit(FG_BIT_SIZE, 1)
+	pos := w.GetGPos(16, 0)
+	fmt.Println(pos)
+	pos = w.GetPos(16)
+	fmt.Println(pos)
 }

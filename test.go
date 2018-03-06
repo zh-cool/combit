@@ -2,17 +2,17 @@ package main
 
 import (
 	"fmt"
-	"math/big"
+	"reflect"
 )
-func sub(in []byte) []byte {
-	a := new(big.Int).SetUint64(1)
-	return append(in, a.Bytes()...)
-}
+
 func main() {
-	b := [32]byte{}
-	a := new(big.Int).SetUint64(1)
+	var a int
 
-	//append(b[:0], a.Bytes()...)
+	b := make(map[reflect.Type]string)
+	b[reflect.TypeOf(a)] = "Hello"
 
-	fmt.Println(append(b[:0], a.Bytes()...))
+	fmt.Println(b)
+
+	str := b[]
+	fmt.Println(str)
 }
