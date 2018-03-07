@@ -28,10 +28,14 @@ func main() {
 	err := binary.Write(buf, binary.BigEndian, mTree)
 	//fmt.Println(buf.Bytes())
 	if err != nil {
-    	panic(err)
+		panic(err)
 	}
 
 	var gTree [1 << 2]common.Hash
 	binary.Read(buf, binary.BigEndian, &gTree)
 	fmt.Println(gTree)
+
+	var hash []byte
+	hash = []byte("string")
+	fmt.Println(hash)
 }

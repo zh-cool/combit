@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"go-unitcoin/libraries/common"
 )
 type MyCoolType struct {
 	Name []byte
@@ -107,13 +108,15 @@ func TestRlp() {
 }
 
 type testRlp struct {
-	A	uint
-	B	uint
-	C	string
+	Pos map[uint64]common.Address
 }
 
+var addr common.Address
+
 func main() {
-	ts := testRlp {1, 2, "Austin"}
+	var ts testRlp
+	ts.Pos[1] = addr
+	ts.Pos[1] = addr
 
 	b := new(bytes.Buffer)
 	rlp.Encode(b, &ts)

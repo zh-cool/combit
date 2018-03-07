@@ -1,4 +1,4 @@
-package main
+package gwallet
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"errors"
 	"go-unitcoin/libraries/crypto/sha3"
 	"go-unitcoin/libraries/db/lvldb"
+	"go-unitcoin/libraries/event"
 	"encoding/binary"
 )
 
@@ -516,68 +517,71 @@ func (w *Wallet) Statistics() {
 }
 
 type GWallet struct {
-	db *lvldb.LDBDatabase
+	db      *lvldb.LDBDatabase
+	posCh   event.Feed
+	PosINfo []common.Address
+	hashTree 	[1<<23]common.Hash
 
-	GID uint64
-
-	hash [1<<23]common.Hash
+	GID   uint64
 	ROOT  common.Hash
 	GHASH []common.Hash
 	GADDR []common.Address
 }
+
+type ReqPosINfo struct {
+	Pos []byte
+}
+type ReqPosINfoEvent struct{ Pos *ReqPosINfo }
+
+type ResPosInfo struct {
+	Pos  []byte
+	Addr common.Address
+}
+type ResPosINfoList []*ResPosInfo
 
 func (gw *GWallet) Hash() common.Hash {
 	return gw.ROOT
 }
 
 func (gw *GWallet) CHash() common.Hash {
+	var i uint64
 
-	var mTree [1 << 23]common.Hash
-	var offset, i, leafe uint64
-
-	offset = uint64(gw.GID * FG_BIT_SIZE)
-
-	iter := gw.db.NewIterator()
-
-	for iter.Next() {
-		// Remember that the contents of the returned slice should not be modified, and
-		// only valid until the next call to Next.
-		key := iter.Key()
-		if len(key) != 20 {
-			continue
-		}
-		value := iter.Value()
-
-		w := &Wallet{common.Address{}, 0, []byte{}, value[8:]}
-		hw := sha3.NewKeccak256()
-		hw.Write(key)
-		leafe = uint64(len(mTree) / 2)
-
-		for i = 0; i < FG_BIT_SIZE; i++ {
-			if w.Bit(i+offset) == 1 {
-				hw.Sum(mTree[i+leafe][:0])
-			}
-		}
-	}
-	iter.Release()
-
-	i = uint64(len(mTree)/2 - 1)
+	i = uint64(len(gw.hashTree)/2 - 1)
 	for ; i >= 1; i-- {
 		left := i << 1
 		right := i<<1 + 1
 		hw := sha3.NewKeccak256()
-		hw.Write(mTree[left][:])
-		hw.Write(mTree[right][:])
-		hw.Sum(mTree[i][:0])
+		hw.Write(gw.hashTree[left][:])
+		hw.Write(gw.hashTree[right][:])
+		hw.Sum(gw.hashTree[i][:0])
 	}
-	fmt.Printf("%x\n", mTree[1])
-	gw.ROOT = mTree[1]
-	return mTree[1]
+	gw.ROOT = gw.hashTree[1]
+	return gw.hashTree[1]
+}
+
+func (gw *GWallet) uHash(pos uint64) {
+	begin := gw.GID*FG_BIT_SIZE
+	end := begin+FG_BIT_SIZE
+	if pos<begin || pos>=end {
+		return
+	}
+
+	var parent uint64
+	parent = pos <<1
+	for ; parent >= 1;  {
+		left := parent >> 1
+		right := parent >> 1 + 1
+		hw := sha3.NewKeccak256()
+		hw.Write(gw.hashTree[left][:])
+		hw.Write(gw.hashTree[right][:])
+		hw.Sum(gw.hashTree[parent][:0])
+		parent = parent << 1
+	}
 }
 
 func (gw *GWallet) IDtoAddr(id uint64) (common.Address, error) {
-
-	addr, err := gw.db.Get(new(big.Int).SetUint64(id).Bytes())
+	b := new(big.Int).SetUint64(id)
+	addr, err := gw.db.Get(b.SetBit(b, 64, 1).Bytes()[1:])
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -587,6 +591,9 @@ func (gw *GWallet) IDtoAddr(id uint64) (common.Address, error) {
 
 func (gw *GWallet) Get(address common.Address) (w *Wallet, err error) {
 	data, err := gw.db.Get(address[:])
+	if err != nil {
+		return nil, err
+	}
 	sid := new(big.Int).SetBytes(data[:8])
 
 	w = &Wallet{address, sid.Uint64(), data[:8], data[8:]}
@@ -656,36 +663,181 @@ func (gw *GWallet) Move(dst, src common.Address, bin uint64) error {
 		return errors.New("Not Enough ubin")
 	}
 
-	fmt.Printf("%v %s\n", ws.Addr, ws.Data)
-	fmt.Printf("%v %s\n", wd.Addr, wd.Data)
 	for _, v := range spos {
 		ws.SetBit(v, 0)
 		wd.SetBit(v, 1)
 	}
 
-	fmt.Printf("%v %s\n", ws.Addr, ws.Data)
-	fmt.Printf("%v %s\n", wd.Addr, wd.Data)
 	return nil
 }
 
-func (gw *GWallet) uHash(pos uint64) {
-	begin := gw.GID*FG_BIT_SIZE
-	end := begin+FG_BIT_SIZE
-	if pos<begin || pos>=end {
+func (gw *GWallet) RequestLostPos() {
+	var idx, rp, offset uint64
+	var pos []byte
+
+	addr := common.Address{}
+	offset = gw.GID*FG_BIT_SIZE
+
+	for idx = 0; idx < FG_BIT_SIZE; idx++ {
+		if gw.PosINfo[idx] == addr {
+			rp++
+		} else {
+			if rp == 1 {
+				b := new(big.Int).SetUint64(offset + idx - 1)
+				b = b.SetBit(b, 64, 1)
+				pos = append(pos, b.Bytes()[1:]...)
+			} else if rp > 1 {
+				begin := idx - rp
+				end := idx - 1
+
+				b := new(big.Int).SetUint64(offset + begin)
+				b = b.SetBit(b, 64, 1)
+				pos = append(pos, b.Bytes()[1:]...)
+
+				pos = append(pos, '-')
+
+				b = new(big.Int).SetUint64(offset + end)
+				b = b.SetBit(b, 64, 1)
+				pos = append(pos, b.Bytes()[1:]...)
+			}
+			rp = 0
+		}
+	}
+	if len(pos) == 0 {
 		return
 	}
 
-	var parent uint64
-	parent = pos <<1
-	for ; parent >= 1;  {
-		left := parent >> 1
-		right := parent >> 1 + 1
-		hw := sha3.NewKeccak256()
-		hw.Write(gw.hash[left][:])
-		hw.Write(gw.hash[right][:])
-		hw.Sum(gw.hash[parent][:0])
-		parent = parent << 1
+	req := ReqPosINfo{
+		Pos: pos,
 	}
+	gw.posCh.Send(ReqPosINfoEvent{&req})
+}
+
+func (gw *GWallet) AddPosInfo(pos ResPosINfoList) {
+	for _, v := range pos {
+		offset := 0
+		var pre uint64 = 0
+
+		for offset < len(v.Pos) {
+			cur, flag := func(coin []byte) (idx uint64, flag bool) {
+				if coin[0] == '-' {
+					offset += 9
+					return new(big.Int).SetBytes(coin[1:9]).Uint64(), true
+				}
+				offset += 8
+				return new(big.Int).SetBytes(coin[0:8]).Uint64(), false
+
+			}(v.Pos[offset:])
+
+			var i uint64
+			if flag == true {
+				length := cur - pre
+				for i = 0; i < length; i++ {
+					pre++
+					gw.PosINfo[pre] = v.Addr
+				}
+			} else {
+				pre = cur
+				gw.PosINfo[cur] = v.Addr
+			}
+		}
+	}
+	gw.RequestLostPos()
+}
+
+func (gw *GWallet) GetPosInfo(req *ReqPosINfo) ResPosINfoList {
+	pos := req.Pos
+	var posinfo map[common.Address][]uint64
+	var empty common.Address = common.Address{}
+
+	offset := 0
+	var pre uint64 = 0
+
+	for offset < len(pos) {
+		cur, flag := func(coin []byte) (idx uint64, flag bool) {
+			if coin[0] == '-' {
+				offset += 9
+				return new(big.Int).SetBytes(coin[1:9]).Uint64(), true
+			}
+			offset += 8
+			return new(big.Int).SetBytes(coin[0:8]).Uint64(), false
+		}(pos[offset:])
+
+		var i uint64
+		if flag == true {
+			length := cur - pre
+			for i = 0; i < length; i++ {
+				pre++
+				addr := gw.PosINfo[pre]
+				if addr == empty{
+					continue
+				}
+				_, ok := posinfo[addr]
+				if ok == true {
+					posinfo[addr] = append(posinfo[addr], pre)
+				} else {
+					posinfo[addr] = []uint64{pre}
+				}
+			}
+		} else {
+			addr := gw.PosINfo[cur]
+			if addr == empty{
+				continue
+			}
+			_, ok := posinfo[addr]
+			if ok == true {
+				posinfo[addr] = append(posinfo[addr], pre)
+			} else {
+				posinfo[addr] = []uint64{pre}
+			}
+		}
+	}
+
+	var poslist ResPosINfoList
+	for addr, idx := range posinfo {
+		spos := []byte{}
+
+		for _, v := range idx {
+			b := new(big.Int)
+			b.SetUint64(v).SetBit(b, 64, 1)
+			spos = append(spos, b.Bytes()[1:]...)
+		}
+
+		v := &ResPosInfo{
+			Pos:  spos,
+			Addr: addr,
+		}
+		poslist = append(poslist, v)
+	}
+
+	return poslist
+}
+
+func (gw *GWallet) SubscribeReqPosINfoEvent(posCh chan ReqPosINfoEvent) {
+	gw.posCh.Subscribe(posCh)
+}
+
+func (gw *GWallet) AddWallets(wallets []*Wallet) {
+	leafe := len(gw.hashTree)
+	for _, v := range wallets {
+		gw.Put(v)
+		var idx uint64 = gw.GID*FG_BIT_SIZE
+
+		for i:=0; i<FG_BIT_SIZE; i++ {
+			if v.Bit(idx)==1 {
+				gw.PosINfo[i] = v.Addr
+				hw := sha3.NewKeccak256()
+				hw.Write(v.Data)
+				hw.Sum(gw.hashTree[leafe+i][:0])
+				gw.uHash(idx)
+				idx++
+			}
+		}
+	}
+
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, gw.PosINfo)
+	gw.db.Put([]byte("POSINFO"), buf.Bytes())
 }
 
 /*
@@ -760,8 +912,26 @@ func (gw *GWallet) Start() {
 }
 */
 
-func NewGWallet(db *lvldb.LDBDatabase) *GWallet {
-	return &GWallet{db: db}
+func NewGWallet(db lvldb.Database) *GWallet {
+	gw := &GWallet{db: db.(*lvldb.LDBDatabase)}
+	posInfo, err := gw.db.Get([]byte("POSINFO"))
+	if err!= nil {
+		return gw
+	}
+
+	buf := bytes.NewBuffer(posInfo)
+	gw.PosINfo = make([]common.Address, 1<<22)
+	binary.Read(buf, binary.BigEndian, gw.PosINfo)
+
+	leafe := len(gw.hashTree)
+	for i, v := range gw.PosINfo {
+		hw := sha3.NewKeccak256()
+		hw.Write(v[:])
+		hw.Sum(gw.hashTree[leafe+i][:0])
+	}
+
+	gw.CHash()
+	return gw
 }
 
 func (gw *GWallet) ReleaseGWallet() {
@@ -942,6 +1112,7 @@ func divid_conquer(data []byte) []byte {
 	return []byte(strconv.FormatInt(int64(dt), 16))
 }
 
+
 func main() {
 	/*
 	id := [8]byte{}
@@ -964,6 +1135,8 @@ func main() {
 	w := &Wallet{common.Address{}, 0, id[:], []byte("0hgggggggg")}
 	defer gw.ReleaseGWallet()
 
+	var glist [1<<22]common.Address
+
 	var i, j uint64
 	for i = 0; i < 4; i++ {
 		b := new(big.Int).SetUint64(i)
@@ -977,8 +1150,22 @@ func main() {
 	}
 	//fmt.Printf("%x, %v, %v, %s\n", w.Addr, w.Sid, w.id, w.Data)
 	fmt.Println()
+	for i = 0; i < 4; i++ {
+		addr := common.HexToAddress(addr[i])
+		w, _ := gw.Get(addr)
+		for j=0; j<100; j++ {
+			w.SetBit(i*100+j, 1)
+			glist[i*100+j] = addr
+		}
+		gw.Put(w)
+		fmt.Printf("%x, %v, %v, %s\n", w.Addr, w.Sid, w.id, w.Data)
+	}
 
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, glist)
+	//gw.db.Put([]byte("coin"), buf.Bytes())
 
+/*
 	var mTree [1 << 23]common.Hash
 	var leafe uint64
 
@@ -1013,7 +1200,7 @@ func main() {
 	binary.Write(buf, binary.BigEndian, mTree[leafe:])
 	gw.db.Put([]byte("GHASH"), buf.Bytes())
 
-/*
+
 	w.SetBit(0, 1)
 	w.SetBit(1, 1)
 	w.SetBit(7, 1)
@@ -1024,3 +1211,4 @@ func main() {
 	fmt.Println(pos)
 */
 }
+
