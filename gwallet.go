@@ -1,4 +1,4 @@
-package gwallet
+package main
 
 import (
 	"bytes"
@@ -619,6 +619,10 @@ func (gw *GWallet) Move(dst, src common.Address, bin uint64) error {
 		return err
 	}
 
+	if dst==src {
+		return nil
+	}
+
 	dlen := len(ws.Data)
 	var pos uint64
 	var spos []uint64
@@ -666,6 +670,7 @@ func (gw *GWallet) Move(dst, src common.Address, bin uint64) error {
 	for _, v := range spos {
 		ws.SetBit(v, 0)
 		wd.SetBit(v, 1)
+		gw.uHash(v)
 	}
 
 	return nil
@@ -678,7 +683,7 @@ func (gw *GWallet) RequestLostPos() {
 	addr := common.Address{}
 	offset = gw.GID*FG_BIT_SIZE
 
-	for idx = 0; idx < FG_BIT_SIZE; idx++ {
+	for idx = 0; idx <= FG_BIT_SIZE; idx++ {
 		if gw.PosINfo[idx] == addr {
 			rp++
 		} else {
@@ -920,14 +925,18 @@ func NewGWallet(db lvldb.Database) *GWallet {
 	}
 
 	buf := bytes.NewBuffer(posInfo)
-	gw.PosINfo = make([]common.Address, 1<<22)
-	binary.Read(buf, binary.BigEndian, gw.PosINfo)
+	gw.PosINfo = make([]common.Address, FG_BIT_SIZE+1)
+	binary.Read(buf, binary.BigEndian, gw.PosINfo[:FG_BIT_SIZE])
+	gw.PosINfo[FG_BIT_SIZE] = common.StringToAddress("1")
 
-	leafe := len(gw.hashTree)
-	for i, v := range gw.PosINfo {
-		hw := sha3.NewKeccak256()
-		hw.Write(v[:])
-		hw.Sum(gw.hashTree[leafe+i][:0])
+	leaf := len(gw.hashTree)/2
+	addr := common.Address{}
+	for i:=0; i<FG_BIT_SIZE; i++ {
+		if addr != gw.PosINfo[i] {
+			hw := sha3.NewKeccak256()
+			hw.Write(gw.PosINfo[i][:])
+			hw.Sum(gw.hashTree[leaf+i][:0])
+		}
 	}
 
 	gw.CHash()
@@ -1114,23 +1123,17 @@ func divid_conquer(data []byte) []byte {
 
 
 func main() {
-	/*
-	id := [8]byte{}
-	b := new(big.Int)
-	b.SetUint64(4)
-	b.SetBit(b, 64, 1)
-	fmt.Println(b.Bytes())
-	fmt.Println(id, append(id[:0], b.Bytes()...), id)
-	*/
 
 	addr := []string{"0x72909d2ab67F852C311a86d9bCA26bf141636ad4",
 		"0x57a2C7b3123b57bf0d180075A7aFe5EF77146080",
 		"0x470C21AebeCA771606e91B0bB8291Fa3066078f9",
 		"0xaEee1905d89d6fb76A7ac35656d6F66e3c2028b1",
 	}
+	_ = addr
 	db, _ := lvldb.NewLDBDatabase("path", 0, 0)
 	gw := NewGWallet(db)
-
+	gw.ReleaseGWallet()
+	/*
 	id := [8]byte{}
 	w := &Wallet{common.Address{}, 0, id[:], []byte("0hgggggggg")}
 	defer gw.ReleaseGWallet()
@@ -1163,8 +1166,8 @@ func main() {
 
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.BigEndian, glist)
-	//gw.db.Put([]byte("coin"), buf.Bytes())
-
+	gw.db.Put([]byte("POSINFO"), buf.Bytes())
+	*/
 /*
 	var mTree [1 << 23]common.Hash
 	var leafe uint64
