@@ -4,37 +4,14 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
+	"time"
 )
 
 func main() {
 
-	result := [32]byte{}
-	data := [32]byte{}
-
-	var i uint64
-
-	for i = 0; i < 1<<2; i++ {
-		hw := sha3.NewKeccak256()
-		hw.Write(data[:])
-		hw.Sum(result[:0])
-	}
-
-	hw := sha3.NewKeccak256()
-	hw.Write(data[:1])
-	hw.Write(data[1:2])
-	hw.Sum(result[:0])
-	fmt.Printf("%x\n", result)
-
-	hw = sha3.NewKeccak256()
-	hw.Write(data[:2])
-	hw.Sum(result[:0])
-	fmt.Printf("%x\n", result)
-
-	hw.Sum(result[:0])
-	fmt.Printf("%x\n", result)
-
-	hw.Sum(result[:0])
-	fmt.Printf("%x\n", result)
+	fmt.Println(time.Now().Unix())
+	Hash()
+	fmt.Println(time.Now().Unix())
 
 }
 
@@ -54,6 +31,3 @@ func Hash() {
 	fmt.Printf("%x\n", data[1])
 }
 
-func sum(b []byte) []byte {
-	return append(b, 'a')
-}
