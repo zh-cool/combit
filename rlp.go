@@ -16,7 +16,7 @@ type txdata  struct{
 type TestRlp struct{
 	Data txdata
 
-	Value int32
+	Value uint32
 	S     []uint
 }
 

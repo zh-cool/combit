@@ -520,7 +520,7 @@ type GWallet struct {
 	db      *lvldb.LDBDatabase
 	posCh   event.Feed
 	PosINfo []common.Address
-	hashTree 	[1<<23]common.Hash
+	hashTree 	[]common.Hash
 
 	GID   uint64
 	ROOT  common.Hash
@@ -545,7 +545,6 @@ func (gw *GWallet) Hash() common.Hash {
 
 func (gw *GWallet) CHash() common.Hash {
 	var i uint64
-
 	i = uint64(len(gw.hashTree)/2 - 1)
 	for ; i >= 1; i-- {
 		left := i << 1
@@ -684,7 +683,7 @@ func (gw *GWallet) RequestLostPos() {
 	offset = gw.GID*FG_BIT_SIZE
 
 	for idx = 0; idx <= FG_BIT_SIZE; idx++ {
-		if gw.PosINfo[idx] == addr {
+		if idx != FG_BIT_SIZE && gw.PosINfo[idx] == addr {
 			rp++
 		} else {
 			if rp == 1 {
@@ -752,8 +751,8 @@ func (gw *GWallet) AddPosInfo(pos ResPosINfoList) {
 
 func (gw *GWallet) GetPosInfo(req *ReqPosINfo) ResPosINfoList {
 	pos := req.Pos
-	var posinfo map[common.Address][]uint64
-	var empty common.Address = common.Address{}
+	posinfo := make(map[common.Address][]uint64)
+	empty := common.Address{}
 
 	offset := 0
 	var pre uint64 = 0
@@ -791,10 +790,11 @@ func (gw *GWallet) GetPosInfo(req *ReqPosINfo) ResPosINfoList {
 			}
 			_, ok := posinfo[addr]
 			if ok == true {
-				posinfo[addr] = append(posinfo[addr], pre)
+				posinfo[addr] = append(posinfo[addr], cur)
 			} else {
-				posinfo[addr] = []uint64{pre}
+				posinfo[addr] = []uint64{cur}
 			}
+			pre = cur
 		}
 	}
 
@@ -925,10 +925,10 @@ func NewGWallet(db lvldb.Database) *GWallet {
 	}
 
 	buf := bytes.NewBuffer(posInfo)
-	gw.PosINfo = make([]common.Address, FG_BIT_SIZE+1)
+	gw.PosINfo = make([]common.Address, FG_BIT_SIZE)
 	binary.Read(buf, binary.BigEndian, gw.PosINfo[:FG_BIT_SIZE])
-	gw.PosINfo[FG_BIT_SIZE] = common.StringToAddress("1")
 
+	gw.hashTree = make([]common.Hash, FG_BIT_SIZE<<1)
 	leaf := len(gw.hashTree)/2
 	addr := common.Address{}
 	for i:=0; i<FG_BIT_SIZE; i++ {
@@ -1121,7 +1121,6 @@ func divid_conquer(data []byte) []byte {
 	return []byte(strconv.FormatInt(int64(dt), 16))
 }
 
-
 func main() {
 
 	addr := []string{"0x72909d2ab67F852C311a86d9bCA26bf141636ad4",
@@ -1132,8 +1131,27 @@ func main() {
 	_ = addr
 	db, _ := lvldb.NewLDBDatabase("path", 0, 0)
 	gw := NewGWallet(db)
+	defer gw.ReleaseGWallet()
+
+	gw.RequestLostPos()
+
+	pos := []byte{}
+	for _, v := range []uint64{1,5,7,9,0,15} {
+		if v==0 {
+			pos = append(pos, '-')
+			continue
+		}
+		b := new(big.Int).SetUint64(v)
+		b.SetBit(b, 64, 1)
+		pos = append(pos, b.Bytes()[1:]...)
+	}
+	//fmt.Println(pos)
+	list := gw.GetPosInfo(&ReqPosINfo{pos})
+	//fmt.Println(list[0])
+	gw.AddPosInfo(list)
+
 	gw.ReleaseGWallet()
-	/*
+/*
 	id := [8]byte{}
 	w := &Wallet{common.Address{}, 0, id[:], []byte("0hgggggggg")}
 	defer gw.ReleaseGWallet()
@@ -1167,7 +1185,7 @@ func main() {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.BigEndian, glist)
 	gw.db.Put([]byte("POSINFO"), buf.Bytes())
-	*/
+*/
 /*
 	var mTree [1 << 23]common.Hash
 	var leafe uint64

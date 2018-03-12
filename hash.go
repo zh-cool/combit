@@ -6,8 +6,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/trie"
+	"time"
 )
-
 
 func main() {
 
@@ -20,16 +20,17 @@ func main() {
 	if err!=nil {
 		fmt.Println(err)
 	}
-	tree.Update()
-
 	result := [32]byte{}
 	data := []byte{}
-
+	_ = tree
 	hw := sha3.NewKeccak256()
 	hw.Write(data[:])
 	hw.Sum(result[:0])
 	fmt.Printf("%x\n", result)
 	fmt.Printf("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+	fmt.Println(time.Now().Unix())
+	Hash()
+	fmt.Println(time.Now().Unix())
 }
 
 func Hash() {
@@ -48,6 +49,3 @@ func Hash() {
 	fmt.Printf("%x\n", data[1])
 }
 
-func sum(b []byte) []byte {
-	return append(b, 'a')
-}
