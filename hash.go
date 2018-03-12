@@ -4,38 +4,32 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
+	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/trie"
 )
+
 
 func main() {
 
-	result := [32]byte{}
-	data := [32]byte{}
 
-	var i uint64
+	db, _ := ethdb.NewLDBDatabase("trie", 0, 0)
+	defer db.Close()
 
-	for i = 0; i < 1<<2; i++ {
-		hw := sha3.NewKeccak256()
-		hw.Write(data[:])
-		hw.Sum(result[:0])
+
+	tree, err := trie.New(common.Hash{}, trie.NewDatabase(db))
+	if err!=nil {
+		fmt.Println(err)
 	}
+	tree.Update()
+
+	result := [32]byte{}
+	data := []byte{}
 
 	hw := sha3.NewKeccak256()
-	hw.Write(data[:1])
-	hw.Write(data[1:2])
+	hw.Write(data[:])
 	hw.Sum(result[:0])
 	fmt.Printf("%x\n", result)
-
-	hw = sha3.NewKeccak256()
-	hw.Write(data[:2])
-	hw.Sum(result[:0])
-	fmt.Printf("%x\n", result)
-
-	hw.Sum(result[:0])
-	fmt.Printf("%x\n", result)
-
-	hw.Sum(result[:0])
-	fmt.Printf("%x\n", result)
-
+	fmt.Printf("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
 }
 
 func Hash() {

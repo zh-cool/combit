@@ -5,7 +5,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/common"
 	"fmt"
-	"github.com/ethereum/go-ethereum/crypto"
+	"go-unitcoin/libraries/crypto/sha3"
 )
 
 func newEmpty() *trie.Trie {
@@ -20,21 +20,24 @@ func main() {
 
 	tried, _ := trie.New(common.Hash{}, triedb)
 
-	tried.Update([]byte("1234"), []byte("Austin"))
-	tried.Update([]byte("12345"), []byte("Austin key"))
-	root, _ := tried.Commit(nil)
+	hs := [2][32]byte{}
+	hw := sha3.NewKeccak256()
+	hw.Write([]byte("Austin"))
+	hw.Sum(hs[0][:0])
 
-	tried, _ = trie.New(root,triedb)
-	val, err := tried.TryGet([]byte("1234"));
-	if err!=nil {
-		fmt.Println(err)
-	}
+	hw = sha3.NewKeccak256()
+	hw.Write([]byte("Austin key"))
+	hw.Sum(hs[1][:0])
 
-	fmt.Printf("%s\n", val)
+	tried.Update(hs[0][:], []byte("Austin"))
+	tried.Update(hs[1][:], []byte("Austin key"))
+	h := tried.Hash()
+	fmt.Printf("%x\n", h.Bytes())
 
-	val = tried.Get([]byte("12345"))
-	fmt.Printf("%s\n", val)
-
-	b := crypto.Keccak256([]byte("Austin"))
-	fmt.Printf("%x\n", b)
+	result := [32]byte{}
+	hw = sha3.NewKeccak256()
+	hw.Write(hs[0][:])
+	hw.Write(hs[1][:])
+	hw.Sum(result[:0])
+	fmt.Printf("%x\n", result)
 }
