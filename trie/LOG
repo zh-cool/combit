@@ -1,0 +1,19 @@
+=============== Mar 10, 2018 (CST) ===============
+19:57:10.442770 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+19:57:10.559585 db@open opening
+19:57:10.560975 version@stat F·[] S·0B[] Sc·[]
+19:57:10.618266 db@janitor F·2 G·0
+19:57:10.618346 db@open done T·58.693454ms
+19:57:10.618407 db@close closing
+19:57:10.618489 db@close done T·79.492µs
+=============== Mar 12, 2018 (CST) ===============
+19:50:33.441931 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+19:50:33.528917 version@stat F·[] S·0B[] Sc·[]
+19:50:33.528932 db@open opening
+19:50:33.528976 journal@recovery F·1
+19:50:33.529439 journal@recovery recovering @1
+19:50:33.543230 version@stat F·[] S·0B[] Sc·[]
+19:50:33.615639 db@janitor F·2 G·0
+19:50:33.615665 db@open done T·86.721025ms
+19:50:36.926825 db@close closing
+19:50:36.926881 db@close done T·52.897µs
