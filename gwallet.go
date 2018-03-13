@@ -1123,16 +1123,16 @@ func divid_conquer(data []byte) []byte {
 
 func main() {
 
-	addr := []string{"0x72909d2ab67F852C311a86d9bCA26bf141636ad4",
-		"0x57a2C7b3123b57bf0d180075A7aFe5EF77146080",
-		"0x470C21AebeCA771606e91B0bB8291Fa3066078f9",
-		"0xaEee1905d89d6fb76A7ac35656d6F66e3c2028b1",
+	addr := []string{"0xD339ac7AeBBCC86d601aa6Ff7e9c05B3224bBF22",
+		"0x4d7405BF97a5aA98F916cCcBA0711451D8b59fb2",
+		"0x473F76d3bca7ea32D26D59470B5BE30a3395abfe",
+		"0xD05F8b9B1F90E73554FD5Ac724Feeb1a3C654D06",
 	}
 	_ = addr
-	db, _ := lvldb.NewLDBDatabase("path", 0, 0)
+	db, _ := lvldb.NewLDBDatabase("/home/austin/go/src/go-unitcoin/build/20050/unitcoin/transactionchaindata", 0, 0)
 	gw := NewGWallet(db)
 	defer gw.ReleaseGWallet()
-
+/*
 	gw.RequestLostPos()
 
 	pos := []byte{}
@@ -1151,7 +1151,7 @@ func main() {
 	gw.AddPosInfo(list)
 
 	gw.ReleaseGWallet()
-/*
+*/
 	id := [8]byte{}
 	w := &Wallet{common.Address{}, 0, id[:], []byte("0hgggggggg")}
 	defer gw.ReleaseGWallet()
@@ -1185,7 +1185,7 @@ func main() {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.BigEndian, glist)
 	gw.db.Put([]byte("POSINFO"), buf.Bytes())
-*/
+
 /*
 	var mTree [1 << 23]common.Hash
 	var leafe uint64
